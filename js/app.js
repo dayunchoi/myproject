@@ -1054,11 +1054,9 @@ function renderMeeting() {
 }
 
 /* ══════════ 렌더: 작업실 ══════════ */
-function scheduleEmoji(text) {
-  if (PART_KEYWORDS.trip.test(text)) return '✈️';
-  if (PART_KEYWORDS.money.test(text)) return '💳';
-  if (PART_KEYWORDS.routine.test(text)) return '⏰';
-  return '📌';
+function scheduleEmoji(r) {
+  const part = routinePart(r);
+  return PART_EMOJI[part] || '📌';
 }
 
 function renderSchedule() {
@@ -1083,7 +1081,7 @@ function renderSchedule() {
   }
   for (const r of daily) {
     items.push({
-      emoji: scheduleEmoji(`${r.title} ${r.note || ''}`),
+      emoji: scheduleEmoji(r),
       title: r.title,
       desc: r.note || '매일 정해진 시각에 자동으로 챙겨요',
       pill: `매일 ${r.when}`,
@@ -1094,7 +1092,7 @@ function renderSchedule() {
   }
   for (const r of [...weekly, ...periodic]) {
     items.push({
-      emoji: scheduleEmoji(`${r.title} ${r.note || ''}`),
+      emoji: scheduleEmoji(r),
       title: r.title,
       desc: r.note || '날짜가 정해진 루틴이에요',
       pill: r.when,
@@ -1227,8 +1225,10 @@ function assistantList() {
     if (a.id === meId || LEGACY_ID.test(a.id)) continue;
     map.set(a.id, { ...a, online: isOnline(a) });
   }
+  const myName = (state.agents[meId] && state.agents[meId].name) || '';
   for (const p of knownPeers) {
     if (map.has(p.id)) continue;
+    if (myName && p.name === myName) continue; // 내 이름으로 남은 예전 기록은 숨깁니다
     map.set(p.id, {
       id: p.id, name: p.name, initial: p.initial, color: p.color,
       status: p.status || '', room: 'command', online: false, lastSeen: p.lastSeen,
