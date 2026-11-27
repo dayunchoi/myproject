@@ -490,6 +490,22 @@ function renderAgents() {
     .filter((a) => a.id === meId || isOnline(a))
     .sort((a, b) => (a.id === meId ? 1 : b.id === meId ? -1 : 0));
 
+  // 같은 자리에 동시에 들어온 피클끼리 겹치지 않게 화면 위치만 살짝 비켜 놓기
+  const spotting = new Map();
+  const placed = [];
+  for (const a of list) {
+    let x = a.x ?? 44;
+    let y = a.y ?? 32;
+    let guard = 0;
+    while (placed.some((p) => Math.abs(p.x - x) < 6 && Math.abs(p.y - y) < 8) && guard < 14) {
+      x += 6;
+      if (x > 92) { x = 10 + (guard % 4) * 7; y += 7; }
+      guard += 1;
+    }
+    placed.push({ x, y });
+    spotting.set(a.id, { x, y });
+  }
+
   for (const a of list) {
     alive.add(a.id);
     let el = agentEls.get(a.id);
@@ -511,8 +527,9 @@ function renderAgents() {
       layer.appendChild(el);
       agentEls.set(a.id, el);
     }
-    el.style.left = a.x + '%';
-    el.style.top = a.y + '%';
+    const spot = spotting.get(a.id) || { x: a.x, y: a.y };
+    el.style.left = spot.x + '%';
+    el.style.top = spot.y + '%';
     el.style.setProperty('--c', a.color || '#c4b5fd');
     el.classList.toggle('me', a.id === meId);
     el.classList.toggle('offline', !isOnline(a));
