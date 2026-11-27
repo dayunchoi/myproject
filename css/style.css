@@ -166,12 +166,13 @@ input,select{outline:none}
 
 /* ───────────── 오피스 맵 ───────────── */
 .map-wrap{
+  --map-w:min(1180px, calc((100dvh - 200px) * 1.2495));
   display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
   align-items:start;gap:22px;justify-items:center;
 }
 .map-shell{
-  width:100%;
-  max-width:min(1180px, calc((100dvh - 200px) * 1.2495));
+  width:var(--map-w);
+  max-width:100%;
   aspect-ratio:1402 / 1122;
   position:relative;border-radius:22px;overflow:hidden;
   border:1px solid #2b3548;
@@ -656,8 +657,7 @@ body.modal-open{overflow:hidden}
   .main{padding:12px 12px 20px}
   .room-title h1{font-size:17px}
   .room-title p{display:none}
-  .map-wrap{display:block}
-  .map-shell{max-width:100%}
+  .map-wrap{display:block;--map-w:100%}
   .kanban{grid-template-columns:1fr}
   .mode-cards{grid-template-columns:1fr}
   .ghost-btn{padding:0 9px;font-size:10.5px}
