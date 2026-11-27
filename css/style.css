@@ -314,7 +314,7 @@ ul { margin: 0; padding: 0; list-style: none; }
   user-select: none;
   pointer-events: none;
 }
-[data-theme="dark"] .map-img { filter: brightness(.86) saturate(.96) contrast(1.02); }
+[data-theme="dark"] .map-img { filter: saturate(1.03) contrast(1.01); }
 .map-stage::after {
   content: "";
   position: absolute; inset: 0;
