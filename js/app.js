@@ -895,6 +895,25 @@ function renderAgents() {
     .filter((a) => a.id === meId || isOnline(a))
     .sort((a, b) => (a.id === meId ? 1 : b.id === meId ? -1 : 0));
 
+  // AI 단톡방에 연결돼 있으면, 방에 있는 AI도 대회의실 캐릭터로 세웁니다.
+  if (aiConnected()) {
+    const members = (ai.room.members || []).filter((m) => m.is_active);
+    members.forEach((m, i) => {
+      if (m.ai_name === '와플') return; // 와플은 내 캐릭터가 이미 있어요
+      list.push({
+        id: 'ai:' + m.id,
+        name: m.ai_name,
+        initial: (m.ai_name || '·').slice(0, 1),
+        color: colorForName(m.ai_name),
+        room: 'meeting',
+        x: 20 + (i % 3) * 13,
+        y: 44 + Math.floor(i / 3) * 9,
+        updatedAt: Date.now(),
+        _seen: Date.now(),
+      });
+    });
+  }
+
   const placed = [];
   const spots = new Map();
   for (const a of list) {
