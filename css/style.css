@@ -664,6 +664,7 @@ body.modal-open{overflow:hidden}
   .room-title p{display:none}
   .map-wrap{display:block;--map-w:100%}
   .kanban{grid-template-columns:1fr}
+  .col{min-height:0}
   .mode-cards{grid-template-columns:1fr}
   .ghost-btn{padding:0 9px;font-size:10.5px}
 }
@@ -691,7 +692,7 @@ body.modal-open{overflow:hidden}
   .agent .tag{font-size:7.5px;bottom:-5px;padding:1px 5px 1px 2px}
   .agent .tag b{width:11px;height:11px;font-size:7px}
   .agent .bubble{max-width:96px;font-size:8px;bottom:44px;padding:4px 7px}
-  .agent:not(.me) .bubble{display:none}
+  .agent .bubble{display:none}
   .map-live{display:none}
   .map-shell{border-radius:16px}
   .map-footer{font-size:9.5px}
