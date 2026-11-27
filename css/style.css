@@ -390,7 +390,7 @@ input,select{outline:none}
 
 .chat-list{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:#2a3448 transparent}
 .chat-inner{display:flex;flex-direction:column;gap:11px}
-.chat-hint{display:flex;flex-direction:column;align-items:center;gap:6px;margin:auto;color:#3f4a60;font-size:10.5px;text-align:center;letter-spacing:-.1px;padding:26px 0}
+.chat-hint{display:flex;flex-direction:column;align-items:center;gap:6px;margin:auto;color:#5a6683;font-size:10.5px;text-align:center;letter-spacing:-.1px;padding:26px 0}
 .chat-hint span{font-size:26px;opacity:.5}
 .chat-hint p{margin:0}
 .chat-hint[hidden]{display:none}
@@ -491,7 +491,7 @@ input,select{outline:none}
 .kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;align-items:start}
 .col{
   background:rgba(16,22,35,.72);border:1px solid var(--line);border-radius:var(--radius);
-  padding:11px;min-height:340px;transition:.2s;
+  padding:11px;min-height:calc(100dvh - 258px);transition:.2s;
 }
 .col-head{display:flex;align-items:center;gap:7px;padding:2px 3px 11px;border-bottom:1px solid var(--line-soft);margin-bottom:10px}
 .col-head b{font-size:11.5px;font-weight:800;letter-spacing:-.1px}
