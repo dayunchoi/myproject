@@ -1,129 +1,90 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b0e14">
+<meta name="theme-color" content="#f6f1ea">
 <title>와플 &amp; 피클 합동 비서실</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=15">
+<link rel="preload" as="image" href="assets/office-clay.webp">
+<link rel="stylesheet" href="css/style.css?v=30">
 </head>
 <body>
 <div class="app">
 
-  <header class="nav">
-    <div class="nav-left">
-      <div class="logo" aria-hidden="true">
-        <span class="logo-face"><i></i><i></i></span>
+  <!-- ══════════ 상단 헤더 ══════════ -->
+  <header class="topbar">
+    <div class="status-col">
+      <div class="pill status-pill" id="statusPill" title="접속 중인 피클 수">
+        <i class="dot" id="statusDot"></i>
+        <span id="statusText">비서 1명 · 온라인 1 · 대기 1</span>
       </div>
-      <div class="brand">
-        <b>와플 &amp; 피클</b>
-        <span>합동 비서실</span>
-      </div>
-      <button class="conn" id="connBadge" title="실시간 연결 상태">
-        <i class="dot"></i>
-        <span id="connText">연결 중…</span>
-        <em id="connDetail"></em>
-      </button>
+      <div class="pill clock-pill"><span id="clockText">—</span></div>
     </div>
-
-    <nav class="tabs" id="tabs" aria-label="방 선택">
-      <button data-tab="map" class="active"><span class="ic">🗺️</span><span>오피스 맵</span></button>
-      <button data-tab="meeting"><span class="ic">💬</span><span>회의실</span></button>
-      <button data-tab="work"><span class="ic">🛠️</span><span>작업실</span><i class="tab-badge" id="workBadge" hidden>0</i></button>
-      <span class="tab-glider" id="tabGlider"></span>
-    </nav>
-
-    <div class="nav-right">
-      <div class="facepile" id="facepile"></div>
-      <div class="online" id="onlineBadge" title="접속 중인 피클"><i class="dot"></i><b id="onlineCount">1</b> ON</div>
-      <button class="icon-btn me-btn" id="profileBtn" title="내 피클 프로필 설정">
+    <div class="utils">
+      <button class="util me-util" id="profileBtn" title="내 피클 프로필">
         <span class="mini-avatar" id="meAvatar">ㅇ</span>
+        <span class="util-name" id="meName">와플</span>
       </button>
-      <button class="icon-btn" id="dbBtn" title="DB · 동기화 설정">⚙️</button>
+      <button class="util icon" id="themeBtn" title="라이트 / 다크 전환" aria-label="테마 전환">
+        <span id="themeIcon">🌙</span>
+      </button>
+      <button class="util icon" id="copyLinkBtn" title="초대 링크 복사" aria-label="초대 링크 복사">🔗</button>
+      <button class="util icon" id="dbBtn" title="DB · 동기화 설정" aria-label="동기화 설정">⚙️</button>
     </div>
   </header>
+
+  <!-- ══════════ 7개 탭 (2줄: 4 + 3) ══════════ -->
+  <nav class="tabwrap" aria-label="비서실 메뉴">
+    <div class="tabrow row1" id="tabRow1">
+      <button data-tab="map" class="active">오피스 맵</button>
+      <button data-tab="meeting">회의실</button>
+      <button data-tab="work">작업실<i class="tab-badge" id="workBadge" hidden>0</i></button>
+      <button data-tab="agents">비서현황</button>
+    </div>
+    <div class="tabrow row2" id="tabRow2">
+      <button data-tab="limits">AI한도</button>
+      <button data-tab="memo">메모</button>
+      <button data-tab="routine">루틴</button>
+    </div>
+  </nav>
 
   <main class="main">
 
     <!-- ══════════ 오피스 맵 ══════════ -->
     <section id="view-map" class="view active">
-      <div class="room-head">
-        <div class="room-title">
-          <h1><span>🗺️</span> 오피스 맵</h1>
-          <p>피클 요원들이 일하는 합동 비서실 · 원하는 자리를 클릭하면 내 피클이 이동해요</p>
-        </div>
-        <div class="room-actions">
-          <button class="ghost-btn" id="mySeatBtn">📍 내 자리로</button>
-          <button class="ghost-btn" id="copyLinkBtn">🔗 초대 링크 복사</button>
-        </div>
+      <div class="page-head">
+        <h1>오피스 맵</h1>
+        <p>대회의실 · 지휘실 · 라운지, 세 공간에서 피클들이 움직입니다.</p>
       </div>
 
-      <div class="map-wrap">
-        <aside class="map-hud hud-left">
-          <h4><span>🟢</span> 접속 중인 요원 <em id="hudAgentCount">0</em></h4>
-          <ul id="hudAgents"></ul>
-          <button class="hud-link" id="hudInvite">+ 초대 링크 복사</button>
-        </aside>
+      <button class="big-action" id="commandBtn"><span class="ba-i">💬</span> 지휘실에서 지시하기</button>
 
-        <div class="map-shell" id="mapShell">
-          <div class="map-stage" id="mapStage">
-            <div class="zone zone-meeting" data-zone="meeting">
-              <button class="zone-label" data-enter="meeting">
-                <span class="zi">🏛️</span>
-                <span class="zt"><b>대회의실</b><em>클릭해서 회의 참여</em></span>
-              </button>
-            </div>
-            <div class="zone zone-work" data-zone="work">
-              <button class="zone-label" data-enter="work">
-                <span class="zi">💻</span>
-                <span class="zt"><b>작업실</b><em>클릭해서 작업 보기</em></span>
-              </button>
-            </div>
-            <div class="zone zone-lounge" data-zone="lounge">
-              <button class="zone-label" data-enter="lounge">
-                <span class="zi">☕</span>
-                <span class="zt"><b>라운지</b><em>휴식 · 자유 수다</em></span>
-              </button>
-            </div>
-
-            <div class="agent-layer" id="agentLayer"></div>
-
-            <div class="map-vignette" aria-hidden="true"></div>
-            <div class="map-live" id="mapLive"><i class="dot"></i> LIVE</div>
+      <div class="map-card">
+        <div class="map-stage" id="mapStage">
+          <img class="map-img" src="assets/office-clay.webp" alt="클레이 3D 오피스 — 대회의실, 지휘실, 라운지" draggable="false">
+          <button class="room-tag tag-command" data-enter="command"><i class="rg command"></i>지휘실</button>
+          <button class="room-tag tag-meeting" data-enter="meeting"><i class="rg meeting"></i>대회의실</button>
+          <button class="room-tag tag-lounge" data-enter="lounge"><i class="rg lounge"></i>라운지</button>
+          <div class="agent-layer" id="agentLayer"></div>
+          <div class="live-chip"><i class="dot"></i>LIVE</div>
+        </div>
+        <div class="map-foot">
+          <p class="map-hint">클레이 3D 오피스 · 이름표를 누르면 비서 상세, 공간 이름을 누르면 내 피클이 그 공간으로 이동합니다</p>
+          <div class="legend">
+            <span><i class="lg meeting"></i>대회의실</span>
+            <span><i class="lg command"></i>지휘실</span>
+            <span><i class="lg lounge"></i>라운지</span>
           </div>
         </div>
-
-        <aside class="map-hud hud-right">
-          <h4><span>⚡</span> 지금 진행 중 <em id="hudDoingCount">0</em></h4>
-          <ul id="hudTasks"></ul>
-          <div class="hud-agenda">
-            <span>현재 안건</span>
-            <p id="hudAgenda">—</p>
-          </div>
-        </aside>
-      </div>
-
-      <div class="map-footer">
-        <span class="hint"><span class="kbd">클릭</span> 공간을 클릭하면 이동 · 피클을 클릭하면 바로 일을 맡길 수 있어요</span>
-        <span class="legend">
-          <span><i class="lg me"></i>내 피클</span>
-          <span><i class="lg peer"></i>함께하는 피클</span>
-          <span id="roomTag" class="room-tag">room: dayun-office</span>
-        </span>
       </div>
     </section>
 
     <!-- ══════════ 회의실 ══════════ -->
     <section id="view-meeting" class="view">
-      <div class="room-head">
-        <div class="room-title">
-          <h1><span>💬</span> 회의실</h1>
-          <p>안건을 정하고, 이야기하고, 결정사항을 남겨요</p>
-        </div>
-        <div class="room-actions">
-          <span class="pill" id="meetingLive"><i class="dot"></i><b id="meetingCount">0</b>명 참여 중</span>
-        </div>
+      <div class="page-head">
+        <h1>회의실</h1>
+        <p>안건을 정하고, 이야기하고, 결정사항을 남겨요.</p>
       </div>
 
       <div class="meeting-grid">
@@ -136,31 +97,30 @@
 
           <div class="chat-list" id="chatList">
             <div class="chat-hint" id="chatHint"><span>💬</span><p>아직 대화가 없어요<br>첫 메시지를 남겨보세요</p></div>
-            <div class="chat-inner" id="chatInner"></div>
-            <div class="chat-empty" id="chatEmpty" hidden><span class="big">💬</span>첫 메시지를 남겨보세요</div>
+            <div class="chat-inner" id="chatInner" hidden></div>
           </div>
 
           <form class="chat-input" id="chatForm">
             <span class="mini-avatar" id="chatAvatar">ㅇ</span>
             <input id="chatInput" maxlength="400" placeholder="메시지를 입력하고 Enter" autocomplete="off">
-            <button type="submit" title="보내기">➤</button>
+            <button type="submit" title="보내기" aria-label="보내기">➤</button>
           </form>
         </div>
 
         <aside class="side">
           <div class="panel participants">
-            <h3><span>🤝</span> 참여 중인 피클 <em id="partCount">0</em></h3>
+            <h3><span class="h-i">🤝</span> 참여 중인 피클 <em id="partCount">0</em></h3>
             <div class="chips" id="participantList"></div>
           </div>
 
           <div class="panel decisions">
-            <h3><span>✅</span> 결정사항 &amp; 메모</h3>
+            <h3><span class="h-i">✅</span> 결정사항</h3>
             <div class="progress"><div id="todoProgress"></div></div>
             <div class="progress-text" id="todoProgressText">0 / 0 완료</div>
             <ul id="todoList"></ul>
             <form id="todoForm" class="todo-form">
               <input id="todoInput" maxlength="100" placeholder="결정사항 추가" autocomplete="off">
-              <button type="submit">+</button>
+              <button type="submit" aria-label="추가">+</button>
             </form>
           </div>
         </aside>
@@ -169,76 +129,239 @@
 
     <!-- ══════════ 작업실 ══════════ -->
     <section id="view-work" class="view">
-      <div class="room-head">
-        <div class="room-title">
-          <h1><span>🛠️</span> 작업실</h1>
-          <p>각 피클에게 일을 나눠주고, 진행 상황을 한눈에 봐요</p>
+      <div class="page-head with-action">
+        <div>
+          <h1>작업실</h1>
+          <p>각 피클에게 일을 나눠주고, 진행 상황을 한눈에 봐요.</p>
         </div>
-        <div class="room-actions">
-          <button class="primary-btn" id="newTaskBtn">+ 새 작업 지시</button>
-        </div>
+        <button class="primary-btn" id="newTaskBtn">+ 새 작업 지시</button>
       </div>
 
-      <form class="task-form" id="taskForm" hidden>
+      <form class="task-form panel" id="taskForm" hidden>
         <div class="tf-row">
-          <label class="tf-main">
-            <span>작업 제목</span>
-            <input id="taskTitle" maxlength="80" placeholder="예: 주말 나들이 후보 3곳 정리" required>
+          <label class="tf-main"><span>작업 제목</span>
+            <input id="taskTitle" maxlength="80" placeholder="예: 주말 나들이 후보 3곳 정리" required autocomplete="off">
           </label>
-          <label>
-            <span>담당 피클</span>
-            <select id="taskOwner"></select>
-          </label>
-          <label>
-            <span>우선순위</span>
-            <select id="taskPriority">
-              <option>보통</option>
-              <option>높음</option>
-              <option>낮음</option>
-            </select>
+          <label><span>담당 피클</span><select id="taskOwner"></select></label>
+          <label><span>우선순위</span>
+            <select id="taskPriority"><option>보통</option><option>높음</option><option>낮음</option></select>
           </label>
         </div>
         <div class="tf-row">
-          <label class="tf-main">
-            <span>메모</span>
-            <input id="taskNote" maxlength="120" placeholder="간단한 설명이나 기한 (선택)">
+          <label class="tf-main"><span>메모</span>
+            <input id="taskNote" maxlength="120" placeholder="간단한 설명이나 기한 (선택)" autocomplete="off">
           </label>
           <button type="submit" class="primary-btn">지시하기</button>
           <button type="button" class="ghost-btn" id="cancelTaskBtn">취소</button>
         </div>
       </form>
 
-      <div class="kanban-note" id="kanbanNote" hidden>
+      <div class="kanban-note panel" id="kanbanNote" hidden>
         <span class="kn-i">🛠️</span>
-        <div>
-          <b>아직 작업이 없어요</b>
-          <p>위의 <strong>+ 새 작업 지시</strong>로 첫 일을 나누거나, 오피스 맵에서 피클을 클릭해 바로 맡겨보세요.</p>
-        </div>
+        <div><b>아직 작업이 없어요</b>
+          <p>위의 <strong>+ 새 작업 지시</strong>로 첫 일을 나누거나, 오피스 맵에서 피클 이름표를 눌러 바로 맡겨보세요.</p></div>
       </div>
 
       <div class="kanban" id="kanban">
         <div class="col" data-status="todo">
-          <div class="col-head"><span class="cdot" style="--c:#94a3b8"></span><b>📋 대기 중</b><em class="count" data-count="todo">0</em></div>
+          <div class="col-head"><span class="cdot" style="--c:#b3a293"></span><b>📋 대기 중</b><em class="count" data-count="todo">0</em></div>
           <div class="cards" id="col-todo" data-status="todo"></div>
         </div>
         <div class="col" data-status="doing">
-          <div class="col-head"><span class="cdot" style="--c:#fbbf24"></span><b>⚡ 진행 중</b><em class="count" data-count="doing">0</em></div>
+          <div class="col-head"><span class="cdot" style="--c:#d9a05a"></span><b>⚡ 진행 중</b><em class="count" data-count="doing">0</em></div>
           <div class="cards" id="col-doing" data-status="doing"></div>
         </div>
         <div class="col" data-status="done">
-          <div class="col-head"><span class="cdot" style="--c:#34d399"></span><b>✅ 완료</b><em class="count" data-count="done">0</em></div>
+          <div class="col-head"><span class="cdot" style="--c:#74a184"></span><b>✅ 완료</b><em class="count" data-count="done">0</em></div>
           <div class="cards" id="col-done" data-status="done"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- ══════════ 비서현황 ══════════ -->
+    <section id="view-agents" class="view">
+      <div class="page-head with-action">
+        <div>
+          <h1>비서현황</h1>
+          <p>지금 방에 있는 피클과 최근 함께한 피클의 상태를 모아봤어요.</p>
+        </div>
+        <button class="ghost-btn" id="editMeBtn">내 프로필 수정</button>
+      </div>
+      <div class="agent-grid" id="agentGrid"></div>
+    </section>
+
+    <!-- ══════════ AI한도 ══════════ -->
+    <section id="view-limits" class="view">
+      <div class="page-head">
+        <h1>AI한도</h1>
+        <p>피클 비서들의 AI 사용 한도를 기록하고 팀과 나눠요.</p>
+      </div>
+
+      <div class="sync-strip" id="syncStrip">
+        <span class="ss-item"><i class="dot" id="syncDot"></i><span id="syncText">연결 중…</span></span>
+        <span class="ss-sep"></span>
+        <span class="ss-item">내 비서 한도는 직접 입력할 수 있어요</span>
+      </div>
+
+      <div class="limit-grid" id="limitGrid"></div>
+    </section>
+
+    <!-- ══════════ 메모 ══════════ -->
+    <section id="view-memo" class="view">
+      <div class="page-head">
+        <h1>메모</h1>
+        <p>팀 공용 메모장 · 남긴 메모는 모두에게 바로 보여요.</p>
+      </div>
+
+      <form class="memo-form panel" id="memoForm">
+        <div class="mf-head">
+          <input id="memoTitle" maxlength="60" placeholder="제목" autocomplete="off" required>
+          <button type="submit" class="primary-btn">메모 남기기</button>
+        </div>
+        <textarea id="memoBody" maxlength="400" rows="2" placeholder="내용을 적어주세요 (선택)"></textarea>
+      </form>
+
+      <div class="memo-grid" id="memoGrid"></div>
+    </section>
+
+    <!-- ══════════ 루틴 ══════════ -->
+    <section id="view-routine" class="view">
+      <div class="page-head">
+        <h1>루틴</h1>
+        <p>와플과 피클들이 자동으로 돌리는 루틴 리포트입니다.</p>
+      </div>
+      <div class="topic-chip"><i class="dot"></i>카드뉴스 리포트</div>
+
+      <div class="routine-wrap" id="routineWrap">
+        <!-- 01 전체 요약 -->
+        <article class="rcard">
+          <header class="rhead">
+            <span class="rnum">01</span>
+            <div class="rt">
+              <h2>전체 요약</h2>
+              <p>지금 돌고 있는 자동화 루틴 수</p>
+            </div>
+            <span class="total-badge" id="routineTotal">합계 0개</span>
+          </header>
+
+          <div class="sum-row">
+            <div class="sum-box rose"><b id="sumDaily">0</b><span>매일 루틴</span></div>
+            <div class="sum-box green"><b id="sumWeekly">0</b><span>주간·주기 루틴</span></div>
+            <div class="sum-box blue"><b id="sumPeriodic">0</b><span>월간·상시·예약</span></div>
+          </div>
+
+          <div class="hub-box">
+            <div class="hub-pill">📓 공용 허브</div>
+            <p>매일 <b>22:00</b> 마감 루틴 → 다음 날 준비·가계부 기록이 한 번에 정리 · 미결 항목은 다음 날 아침에 다시 알려드려요</p>
+          </div>
+
+          <div class="next-banner" id="nextBanner">
+            <span class="nb-icon">⏰</span>
+            <span class="nb-text">다음 루틴을 계산 중…</span>
+          </div>
+        </article>
+
+        <!-- 02 매일 루틴 -->
+        <article class="rcard">
+          <header class="rhead">
+            <span class="rnum">02</span>
+            <div class="rt">
+              <h2>매일 루틴</h2>
+              <p>하루의 흐름 · 00:00부터 24:00까지</p>
+            </div>
+            <span class="count-badge" id="dailyCount">0개</span>
+          </header>
+          <ul class="rt-list" id="dailyList"></ul>
+          <button class="add-routine" data-add="daily">+ 루틴 추가</button>
+        </article>
+
+        <!-- 03 월간·상시·예약 -->
+        <article class="rcard">
+          <header class="rhead">
+            <span class="rnum">03</span>
+            <div class="rt">
+              <h2>월간·상시·예약</h2>
+              <p>날짜가 정해진 루틴 · 예약 오픈과 운항</p>
+            </div>
+            <span class="count-badge" id="periodicCount">0개</span>
+          </header>
+          <ul class="rt-list" id="periodicList"></ul>
+          <button class="add-routine" data-add="periodic">+ 루틴 추가</button>
+        </article>
+
+        <form class="rcard routine-form" id="routineForm" hidden>
+          <header class="rhead">
+            <span class="rnum plus">＋</span>
+            <div class="rt">
+              <h2>루틴 추가</h2>
+              <p>공용 루틴에 더하면 모두에게 동기화돼요</p>
+            </div>
+            <button type="button" class="x-btn" id="routineCancel">✕</button>
+          </header>
+          <div class="rf-grid">
+            <label><span>종류</span>
+              <select id="rtKind">
+                <option value="daily">매일 루틴</option>
+                <option value="weekly">주간·주기 루틴</option>
+                <option value="periodic">월간·상시·예약</option>
+              </select>
+            </label>
+            <label><span>시간 / 날짜</span>
+              <input id="rtWhen" maxlength="24" placeholder="예: 07:30 또는 12/24 10:00" autocomplete="off" required>
+            </label>
+            <label class="rf-wide"><span>루틴 이름</span>
+              <input id="rtTitle" maxlength="60" placeholder="예: 아침 스트레칭 알림" autocomplete="off" required>
+            </label>
+            <label class="rf-wide"><span>메모 (선택)</span>
+              <input id="rtNote" maxlength="80" placeholder="간단한 설명" autocomplete="off">
+            </label>
+          </div>
+          <div class="rf-foot">
+            <button type="button" class="ghost-btn" id="routineCancel2">취소</button>
+            <button type="submit" class="primary-btn">루틴 추가</button>
+          </div>
+        </form>
       </div>
     </section>
 
   </main>
 </div>
 
-<!-- 토스트 -->
 <div class="toasts" id="toasts"></div>
 
-<!-- 프로필 모달 -->
+<!-- ══════════ 지휘실 지시 모달 ══════════ -->
+<div class="overlay" id="commandModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="commandTitle">
+    <div class="modal-head">
+      <h2 id="commandTitle">💬 지휘실에서 지시하기</h2>
+      <button class="x-btn" data-close="commandModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-sub">한 줄로 지시하면 작업실 카드로 바로 들어가요.</p>
+      <label class="field"><span>지시할 피클</span>
+        <select id="cmdOwner"></select>
+      </label>
+      <label class="field"><span>지시 내용</span>
+        <textarea id="cmdText" rows="3" maxlength="200" placeholder="예: 이번 주말 나들이 후보 3곳 추려줘"></textarea>
+      </label>
+      <div class="as-row">
+        <label class="field"><span>우선순위</span>
+          <select id="cmdPriority"><option>보통</option><option>높음</option><option>낮음</option></select>
+        </label>
+        <label class="field"><span>배정 상태</span>
+          <select id="cmdStatus"><option value="todo">대기로 배정</option><option value="doing">바로 진행</option></select>
+        </label>
+      </div>
+      <p class="fine">지시는 작업실에 실시간으로 반영되고, 대상 피클에게 알림 배지가 떠요.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="ghost-btn" data-close="commandModal">취소</button>
+      <button class="primary-btn" id="cmdSubmit">지시하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 내 피클 프로필 ══════════ -->
 <div class="overlay" id="profileModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
     <div class="modal-head">
@@ -249,27 +372,27 @@
       <div class="profile-preview">
         <div class="pv-agent" id="pvAgent">
           <div class="pv-bubble" id="pvBubble">상태 메시지</div>
-          <div class="pv-body"><span class="pv-e1"></span><span class="pv-e2"></span></div>
+          <div class="pv-body"><span class="eye l"></span><span class="eye r"></span></div>
           <div class="pv-shadow"></div>
         </div>
         <div class="pv-name"><b id="pvInitial">ㅇ</b><span id="pvName">와플</span></div>
       </div>
 
-      <label class="field"><span>이름</span><input id="pfName" maxlength="12" placeholder="피클 이름"></label>
-      <label class="field"><span>한글 자음 1글자</span><input id="pfInitial" maxlength="1" placeholder="ㅇ"></label>
+      <label class="field"><span>이름</span><input id="pfName" maxlength="12" placeholder="피클 이름" autocomplete="off"></label>
+      <label class="field"><span>한글 자음 1글자</span><input id="pfInitial" maxlength="1" placeholder="ㅇ" autocomplete="off"></label>
       <div class="field"><span>색상</span>
         <div class="swatches" id="pfColors">
-          <button type="button" data-color="#c4b5fd" style="--c:#c4b5fd"></button>
-          <button type="button" data-color="#93c5fd" style="--c:#93c5fd"></button>
-          <button type="button" data-color="#86efac" style="--c:#86efac"></button>
-          <button type="button" data-color="#fcd34d" style="--c:#fcd34d"></button>
-          <button type="button" data-color="#f9a8d4" style="--c:#f9a8d4"></button>
-          <button type="button" data-color="#fdba74" style="--c:#fdba74"></button>
-          <button type="button" data-color="#a5b4fc" style="--c:#a5b4fc"></button>
-          <button type="button" data-color="#e2e8f0" style="--c:#e2e8f0"></button>
+          <button type="button" data-color="#d8b4c4" style="--c:#d8b4c4"></button>
+          <button type="button" data-color="#a9c4e6" style="--c:#a9c4e6"></button>
+          <button type="button" data-color="#a8cdb4" style="--c:#a8cdb4"></button>
+          <button type="button" data-color="#e8c98e" style="--c:#e8c98e"></button>
+          <button type="button" data-color="#d97d90" style="--c:#d97d90"></button>
+          <button type="button" data-color="#e3a988" style="--c:#e3a988"></button>
+          <button type="button" data-color="#b3b0dd" style="--c:#b3b0dd"></button>
+          <button type="button" data-color="#cfc4b8" style="--c:#cfc4b8"></button>
         </div>
       </div>
-      <label class="field"><span>상태 메시지</span><input id="pfStatus" maxlength="40" placeholder="예: 회의 자료 정리 중"></label>
+      <label class="field"><span>상태 메시지</span><input id="pfStatus" maxlength="40" placeholder="예: 회의 자료 정리 중" autocomplete="off"></label>
     </div>
     <div class="modal-foot">
       <button class="ghost-btn" data-close="profileModal">취소</button>
@@ -278,7 +401,7 @@
   </div>
 </div>
 
-<!-- 일 맡기기 모달 (오피스 맵·명단에서 피클 클릭) -->
+<!-- ══════════ 비서 상세 · 일 맡기기 ══════════ -->
 <div class="overlay" id="assignModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="assignTitle">
     <div class="modal-head">
@@ -295,28 +418,23 @@
         <em class="at-state on" id="asState">접속 중</em>
       </div>
 
+      <div class="as-info" id="asInfo"></div>
+
       <label class="field"><span>작업 제목</span>
         <input id="asTitle" maxlength="80" placeholder="예: 주말 나들이 후보 3곳 정리" autocomplete="off">
       </label>
       <div class="as-row">
         <label class="field"><span>우선순위</span>
-          <select id="asPriority">
-            <option>보통</option>
-            <option>높음</option>
-            <option>낮음</option>
-          </select>
+          <select id="asPriority"><option>보통</option><option>높음</option><option>낮음</option></select>
         </label>
         <label class="field"><span>배정 상태</span>
-          <select id="asStatusSel">
-            <option value="todo">대기로 배정</option>
-            <option value="doing">바로 진행</option>
-          </select>
+          <select id="asStatusSel"><option value="todo">대기로 배정</option><option value="doing">바로 진행</option></select>
         </label>
       </div>
       <label class="field"><span>메모</span>
         <input id="asNote" maxlength="120" placeholder="기한이나 참고사항 (선택)" autocomplete="off">
       </label>
-      <p class="fine">배정하면 상대 피클의 작업실 카드와 오피스 맵 말풍선에 바로 반영돼요.</p>
+      <p class="fine">배정하면 상대 피클의 작업실 카드와 오피스 맵 이름표에 바로 반영돼요.</p>
     </div>
     <div class="modal-foot">
       <button class="ghost-btn" data-close="assignModal">취소</button>
@@ -325,7 +443,7 @@
   </div>
 </div>
 
-<!-- DB 설정 모달 -->
+<!-- ══════════ DB · 동기화 설정 ══════════ -->
 <div class="overlay" id="dbModal" hidden>
   <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="dbTitle">
     <div class="modal-head">
@@ -355,18 +473,6 @@
           <button class="ghost-btn" id="fbTest">연결 테스트</button>
           <span class="fb-result" id="fbResult"></span>
         </div>
-        <details class="rules">
-          <summary>Firebase 규칙 예시 보기</summary>
-          <pre>{
-  "rules": {
-    "pickleOffice": {
-      ".read": true,
-      ".write": true
-    }
-  }
-}</pre>
-          <p>테스트용 공개 규칙이에요. 실제로 쓰실 땐 규칙을 좁혀두세요.</p>
-        </details>
       </div>
 
       <div class="room-box">
@@ -389,6 +495,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=12"></script>
+<script type="module" src="js/app.js?v=30"></script>
 </body>
 </html>
