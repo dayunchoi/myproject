@@ -8,6 +8,9 @@ import { getPublicKey, ProjectivePoint, utils } from '../lib/noble-secp256k1.js?
 const te = new TextEncoder();
 const N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
 
+/* 방 태그 버전 — 예전 테스트 이벤트가 섞이지 않도록 prefix 를 올린다 */
+export const TOPIC_PREFIX = 'pickle-office-v2:';
+
 export function bytesToHex(bytes) {
   let s = '';
   for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, '0');
@@ -95,7 +98,7 @@ export class NostrBus {
   constructor({ relays, room, onEvent, onStatus }) {
     this.relays = relays;
     this.room = room;
-    this.topic = 'pickleoffice-' + room;
+    this.topic = TOPIC_PREFIX + room;
     this.onEvent = onEvent;
     this.onStatus = onStatus;
     this.sk = loadKey();

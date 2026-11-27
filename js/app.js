@@ -1,9 +1,10 @@
 /* ═══════════════════════════════════════════════════════════
    와플 & 피클 합동 비서실 — app
+   예시(더미) 요원 없이, 실제로 접속한 피클끼리 일을 나누는 협업 사무실
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=8';
+import { NostrBus } from './nostr.js?v=9';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -18,6 +19,8 @@ const ZONES = {
   work: { left: 35.5, top: 8.5, right: 84, bottom: 50 },
   lounge: { left: 48.5, top: 55.5, right: 96, bottom: 88.5 },
 };
+const STATUS_LABEL = { todo: '대기', doing: '진행 중', done: '완료' };
+const LEGACY_ID = /^(demo-|seed-|fake-)/;
 
 /* ────────── 방 / 나 ────────── */
 const params = new URLSearchParams(location.search);
@@ -31,7 +34,9 @@ const meId = (() => {
   return id;
 })();
 
-const stateKey = 'po.state.' + room;
+/* 상태 저장 키 (예시 데이터가 섞여 있던 이전 상태와 분리) */
+const stateKey = 'po.state.2.' + room;
+const peersKey = 'po.peers.' + room;
 const seen = new Set();
 let state = emptyState();
 let mode = localStorage.getItem('po.mode') === 'firebase' ? 'firebase' : 'nostr';
@@ -41,66 +46,81 @@ function emptyState() {
   return { agents: {}, tasks: {}, todos: {}, messages: [], agenda: { text: '', updatedAt: 0 } };
 }
 
-const DEMO_AGENTS = [
-  { id: 'demo-mochi', name: '모찌', initial: 'ㅁ', color: '#93c5fd', status: '회의 자료 정리 중', x: 57, y: 26.5, room: 'work' },
-  { id: 'demo-tofu', name: '두부', initial: 'ㄷ', color: '#86efac', status: '문서 검토 중', x: 69, y: 26.5, room: 'work' },
-  { id: 'demo-sogeum', name: '소금', initial: 'ㅅ', color: '#fcd34d', status: '대회의실에서 대기 중', x: 30.5, y: 48, room: 'meeting' },
-  { id: 'demo-latte', name: '라떼', initial: 'ㄹ', color: '#f9a8d4', status: '라운지에서 충전 중', x: 67, y: 80, room: 'lounge' },
-];
+/* ────────── 최근 참여한 피클 기억 ────────── */
+let knownPeers = (() => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(peersKey) || '[]');
+    return Array.isArray(raw) ? raw.filter((p) => p && p.id && !LEGACY_ID.test(p.id)) : [];
+  } catch (_) { return []; }
+})();
 
-/* ────────── 초기 데이터 ────────── */
-function seed() {
-  const t = Date.now();
-  DEMO_AGENTS.forEach((a, i) => {
-    state.agents[a.id] = { ...a, demo: true, updatedAt: t - 60000 + i, _seen: t };
-  });
+function rememberPeers() {
+  const map = new Map(knownPeers.map((p) => [p.id, p]));
+  for (const a of Object.values(state.agents)) {
+    if (!a || a.id === meId || LEGACY_ID.test(a.id)) continue;
+    map.set(a.id, {
+      id: a.id,
+      name: a.name || '피클',
+      initial: a.initial || 'ㅇ',
+      color: a.color || '#c4b5fd',
+      status: a.status || '',
+      lastSeen: a._seen || Date.now(),
+    });
+  }
+  knownPeers = [...map.values()].sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0)).slice(0, 12);
+  try { localStorage.setItem(peersKey, JSON.stringify(knownPeers)); } catch (_) {}
+}
 
-  state.agenda = { text: '이번 주 합동 비서실 운영 점검 · 각 피클 진행 상황 공유', updatedAt: t - 50000 };
-
-  const tasks = [
-    { title: '주말 잠실 데이트 코스 후보 정리', owner: 'demo-mochi', priority: '보통', note: '전시 · 카페 3곳', status: 'todo' },
-    { title: '12월 카드 결제 예산표 갱신', owner: meId, priority: '높음', note: '리볼빙 포함해서', status: 'todo' },
-    { title: '나고야 숙소 취소 규정 확인', owner: meId, priority: '높음', note: '도미인·케이한 비교', status: 'doing' },
-    { title: '발레 주 5회 일정 캘린더 정리', owner: 'demo-tofu', priority: '보통', note: '평일 저녁 위주', status: 'doing' },
-    { title: '회의실 안건 초안 공유', owner: 'demo-sogeum', priority: '낮음', note: '지난주 메모 정리 완료', status: 'done' },
-  ];
-  tasks.forEach((task, i) => {
-    const id = 'seed-task-' + i;
-    state.tasks[id] = { id, ...task, createdAt: t - 100000 + i * 1000, updatedAt: t - 80000 + i * 1000 };
-  });
-
-  [['합동 비서실 방 이름 정하기', true], ['각 피클 담당 업무 나누기', false], ['주간 진행 상황 공유 시간 정하기', false]].forEach(([text, done], i) => {
-    const id = 'seed-todo-' + i;
-    state.todos[id] = { id, text, done, updatedAt: t - 70000 + i * 1000 };
-  });
-
-  const msgs = [
-    { agentId: 'demo-sogeum', name: '소금', initial: 'ㅅ', color: '#fcd34d', text: '대회의실 준비 다 됐어요. 안건부터 볼까요?', ts: t - 3600000 },
-    { agentId: 'demo-mochi', name: '모찌', initial: 'ㅁ', color: '#93c5fd', text: '주말 나들이 후보 3개 정리해서 올려뒀습니다 🙌', ts: t - 3300000 },
-    { agentId: meId, name: '와플', initial: 'ㅇ', color: '#c4b5fd', text: '좋아요. 예산표랑 같이 보면서 정리해요!', ts: t - 3000000 },
-  ];
-  state.messages = msgs.map((m, i) => ({ ...m, id: 'seed-msg-' + i }));
+function recallPeer(id) {
+  return knownPeers.find((p) => p.id === id) || null;
 }
 
 /* ────────── 내 피클 ────────── */
+function readProfile() {
+  try { return JSON.parse(localStorage.getItem('po.profile') || '{}'); } catch (_) { return {}; }
+}
+
 function ensureMe() {
   const t = Date.now();
   let a = state.agents[meId];
   if (!a) {
-    const saved = (() => { try { return JSON.parse(localStorage.getItem('po.profile') || '{}'); } catch (_) { return {}; } })();
+    const saved = readProfile();
     a = {
       id: meId,
       name: saved.name || '와플',
       initial: saved.initial || 'ㅇ',
       color: saved.color || '#c4b5fd',
-      status: saved.status || '오피스 맵 정리 중',
+      status: saved.status || '',
       x: 44, y: 32, room: 'work',
-      updatedAt: t, _seen: t,
+      updatedAt: t,
     };
     state.agents[meId] = a;
   }
-  a._seen = Date.now();
+  a._seen = t;
   return a;
+}
+
+/* 예전 예시(더미) 데이터 청소 — 남아 있어도 절대 화면에 나오지 않게 */
+function purgeDemoData(s) {
+  if (!s || typeof s !== 'object') return s;
+  s.agents = s.agents && typeof s.agents === 'object' ? s.agents : {};
+  s.tasks = s.tasks && typeof s.tasks === 'object' ? s.tasks : {};
+  s.todos = s.todos && typeof s.todos === 'object' ? s.todos : {};
+  for (const id of Object.keys(s.agents)) {
+    const a = s.agents[id];
+    if (!a || a.demo || LEGACY_ID.test(id) || LEGACY_ID.test(a.id || '')) delete s.agents[id];
+  }
+  for (const id of Object.keys(s.tasks)) {
+    const t = s.tasks[id];
+    if (!t || t.demo || LEGACY_ID.test(id) || LEGACY_ID.test(t.owner || '')) delete s.tasks[id];
+  }
+  for (const id of Object.keys(s.todos)) {
+    const t = s.todos[id];
+    if (!t || LEGACY_ID.test(id)) delete s.todos[id];
+  }
+  s.messages = (Array.isArray(s.messages) ? s.messages : [])
+    .filter((m) => m && !LEGACY_ID.test(m.id || '') && !LEGACY_ID.test(m.agentId || ''));
+  return s;
 }
 
 function loadState() {
@@ -110,29 +130,16 @@ function loadState() {
     if (raw) loaded = JSON.parse(raw);
   } catch (_) {}
   if (loaded && loaded.agents) {
-    state = { ...emptyState(), ...loaded };
+    state = purgeDemoData({ ...emptyState(), ...loaded });
     state.agenda = state.agenda || { text: '', updatedAt: 0 };
     state.messages = state.messages || [];
   } else {
     state = emptyState();
-    seed();
   }
-  // 예시 요원은 항상 정해진 자리에 (로컬 전용)
-  DEMO_AGENTS.forEach((d) => {
-    const cur = state.agents[d.id];
-    if (cur) {
-      cur.x = d.x; cur.y = d.y; cur.room = d.room;
-      cur.name = cur.name || d.name;
-      cur.color = cur.color || d.color;
-      cur.initial = cur.initial || d.initial;
-      cur.demo = true;
-    }
-  });
-
   ensureMe();
-  // 저장된 내 캐릭터는 항상 내 프로필을 따른다
-  const savedProfile = (() => { try { return JSON.parse(localStorage.getItem('po.profile') || '{}'); } catch (_) { return {}; } })();
+  const savedProfile = readProfile();
   if (savedProfile.name) Object.assign(state.agents[meId], savedProfile);
+  rememberPeers();
 }
 
 /* ────────── 유틸 ────────── */
@@ -144,17 +151,20 @@ const timeHM = (ts) => {
   const d = new Date(ts || Date.now());
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
-const isDemo = (a) => !!a.demo;
+const short = (s, n = 14) => {
+  s = String(s || '');
+  return s.length > n ? s.slice(0, n) + '…' : s;
+};
+/* 접속 판정: 나 → 항상, 남 → 최근 75초 안에 신호 */
 const isOnline = (a) => {
   if (!a) return false;
   if (a.id === meId) return true;
-  if (isDemo(a)) return true;
   return Date.now() - (a._seen || 0) < 75000;
 };
 const onlineAgents = () => Object.values(state.agents).filter(isOnline);
-const realOnline = () => onlineAgents().filter((a) => !isDemo(a));
-const inMeeting = () => Object.values(state.agents).filter((a) => a.room === 'meeting');
-const ownerOf = (id) => state.agents[id];
+const inMeeting = () => Object.values(state.agents).filter((a) => isOnline(a) && a.room === 'meeting');
+const ownerOf = (id) => state.agents[id] || recallPeer(id) || null;
+const ownerName = (id) => ownerOf(id)?.name || '미지정';
 
 function saveState() {
   try { localStorage.setItem(stateKey, JSON.stringify(state)); } catch (_) {}
@@ -166,7 +176,25 @@ function toast(text) {
   el.className = 'toast';
   el.textContent = text;
   box.appendChild(el);
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, 2400);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, 2600);
+}
+
+/* ────────── 작업실 탭 알림 배지 ────────── */
+let badgeCount = 0;
+function paintBadge() {
+  const el = $('#workBadge');
+  if (!el) return;
+  el.textContent = badgeCount > 9 ? '9+' : String(badgeCount);
+  el.hidden = badgeCount === 0;
+}
+function bumpBadge() {
+  badgeCount += 1;
+  paintBadge();
+}
+function clearBadge() {
+  if (!badgeCount) return;
+  badgeCount = 0;
+  paintBadge();
 }
 
 /* ────────── op 적용 / 발행 ────────── */
@@ -175,6 +203,20 @@ function scheduleRender() {
   if (renderQueued) return;
   renderQueued = true;
   requestAnimationFrame(() => { renderQueued = false; renderAll(); });
+}
+
+/* 내 작업이 배정·변경되면 알림 */
+function notifyTask(prev, next, by) {
+  if (!next || next.deleted) return;
+  if (!by || by === meId) return;
+  const from = ownerName(by);
+  if (next.owner === meId && (!prev || prev.owner !== meId)) {
+    toast(`📥 ${from} → 나 · "${short(next.title, 16)}"`);
+    bumpBadge();
+  } else if (prev && prev.owner === meId && next.owner === meId && next.status !== prev.status) {
+    toast(`🔄 "${short(next.title, 16)}" · ${STATUS_LABEL[next.status] || next.status}`);
+    bumpBadge();
+  }
 }
 
 function applyOp(op, remote = false, createdAtSec = 0) {
@@ -188,7 +230,9 @@ function applyOp(op, remote = false, createdAtSec = 0) {
 
   if (op.type === 'agent' && op.agent) {
     const a = op.agent;
+    if (!a.id || LEGACY_ID.test(a.id)) return false;
     const cur = state.agents[a.id];
+    const isNewPeer = !cur && a.id !== meId;
     if (!cur || (a.updatedAt || 0) >= (cur.updatedAt || 0)) {
       const prevSeen = cur?._seen || 0;
       state.agents[a.id] = { ...(cur || {}), ...a, _seen: Math.max(prevSeen, seenTs) };
@@ -196,12 +240,15 @@ function applyOp(op, remote = false, createdAtSec = 0) {
     } else if (remote) {
       cur._seen = Math.max(cur._seen || 0, seenTs);
     }
+    if (isNewPeer && op.by !== meId) toast(`👋 ${a.name || '피클'} 피클이 들어왔어요`);
+    if (a.id !== meId) rememberPeers();
   } else if (op.type === 'agenda' && op.agenda) {
     if ((op.agenda.updatedAt || 0) >= (state.agenda.updatedAt || 0)) {
       state.agenda = { ...op.agenda };
       changed = true;
     }
   } else if (op.type === 'chat' && op.msg) {
+    if (LEGACY_ID.test(op.msg.agentId || '')) return false;
     if (!state.messages.some((m) => m.id === op.msg.id)) {
       state.messages.push(op.msg);
       state.messages.sort((x, y) => x.ts - y.ts);
@@ -215,10 +262,13 @@ function applyOp(op, remote = false, createdAtSec = 0) {
       changed = true;
     }
   } else if (op.type === 'task' && op.task) {
-    const cur = state.tasks[op.task.id];
-    if (!cur || (op.task.updatedAt || 0) >= (cur.updatedAt || 0)) {
-      state.tasks[op.task.id] = { ...op.task };
+    const next = op.task;
+    if (!next.id || LEGACY_ID.test(next.id)) return false;
+    const cur = state.tasks[next.id];
+    if (!cur || (next.updatedAt || 0) >= (cur.updatedAt || 0)) {
+      state.tasks[next.id] = { ...next };
       changed = true;
+      if (remote) notifyTask(cur, next, op.by);
     }
   }
 
@@ -259,7 +309,6 @@ function publishMeThrottled() {
 /* ────────── 동기화: Nostr ────────── */
 let bus = null;
 let bc = null;
-let lastHello = 0;
 let fb = { es: null, timer: null, lastRev: 0, active: false };
 
 function setConn(kind, text, detail) {
@@ -277,7 +326,7 @@ function startNostr() {
   if (bus) bus.close();
   if (!bc) {
     try {
-      bc = new BroadcastChannel('pickleoffice-' + room);
+      bc = new BroadcastChannel('pickleoffice2-' + room);
       bc.onmessage = (e) => applyOp(e.data, true);
     } catch (_) { bc = null; }
   }
@@ -342,14 +391,15 @@ function adoptRemote(doc) {
   if (!doc || typeof doc !== 'object' || !doc.agents) return;
   if ((doc.rev || 0) <= fb.lastRev) return;
   fb.lastRev = doc.rev || 0;
-  state = {
+  state = purgeDemoData({
     agents: doc.agents || {},
     tasks: doc.tasks || {},
     todos: doc.todos || {},
     agenda: doc.agenda || { text: '', updatedAt: 0 },
     messages: Array.isArray(doc.messages) ? doc.messages : [],
-  };
+  });
   ensureMe();
+  rememberPeers();
   saveState();
   scheduleRender();
 }
@@ -362,7 +412,7 @@ async function startFirebase() {
   if (bus) { bus.close(); bus = null; }
   if (!bc) {
     try {
-      bc = new BroadcastChannel('pickleoffice-' + room);
+      bc = new BroadcastChannel('pickleoffice2-' + room);
       bc.onmessage = (e) => applyOp(e.data, true);
     } catch (_) { bc = null; }
   }
@@ -404,19 +454,22 @@ function startSync() {
 /* ────────── 렌더: 캐릭터 ────────── */
 const agentEls = new Map();
 
-const short = (s, n = 14) => {
-  s = String(s || '');
-  return s.length > n ? s.slice(0, n) + '…' : s;
-};
 function doingTaskOf(a) {
   return Object.values(state.tasks)
     .filter((t) => t.owner === a.id && t.status === 'doing' && !t.deleted)
     .sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0))[0];
 }
+function waitingCountOf(a) {
+  return Object.values(state.tasks)
+    .filter((t) => t.owner === a.id && t.status === 'todo' && !t.deleted).length;
+}
 function bubbleFull(a) {
   const doing = doingTaskOf(a);
   if (doing) return '⚡ ' + doing.title;
-  return a.status || '';
+  if (a.status) return a.status;
+  const wait = waitingCountOf(a);
+  if (wait) return `🗂 대기 ${wait}건`;
+  return '';
 }
 function bubbleFor(a) {
   return short(bubbleFull(a), 14);
@@ -425,18 +478,19 @@ function bubbleFor(a) {
 function renderAgents() {
   const layer = $('#agentLayer');
   const alive = new Set();
-  // 10분 넘게 소식 없는 요원은 정리 (예시 요원·내 피클 제외)
+  // 10분 넘게 소식 없는 피클은 지도에서 정리
   const staleBefore = Date.now() - 10 * 60 * 1000;
   for (const [id, a] of Object.entries(state.agents)) {
-    if (id !== meId && !isDemo(a) && (a._seen || 0) < staleBefore) {
+    if (id !== meId && (a._seen || 0) < staleBefore) {
       delete state.agents[id];
       saveState();
     }
   }
-  const list = Object.values(state.agents).sort((a, b) => (a.id === meId ? 1 : b.id === meId ? -1 : 0));
+  const list = Object.values(state.agents)
+    .filter((a) => a.id === meId || isOnline(a))
+    .sort((a, b) => (a.id === meId ? 1 : b.id === meId ? -1 : 0));
+
   for (const a of list) {
-    // 지금 이 사무실에 있는 요원만 보여줌 (오래된 접속 기록은 숨김)
-    if (!isOnline(a) && a.id !== meId) continue;
     alive.add(a.id);
     let el = agentEls.get(a.id);
     if (!el) {
@@ -448,11 +502,11 @@ function renderAgents() {
         <div class="stem"></div>
         <div class="body"><span class="eyes"><i></i><i></i></span><span class="mouth"></span></div>
         <div class="shadow"></div>
-        <div class="tag"><b></b><span class="nm"></span><span class="demo-tag">예시</span></div>`;
+        <div class="tag"><b></b><span class="nm"></span></div>`;
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         if (a.id === meId) openProfile();
-        else toast(`${a.name} · ${bubbleFor(a) || '대기 중'}`);
+        else openAssign(a.id);
       });
       layer.appendChild(el);
       agentEls.set(a.id, el);
@@ -461,20 +515,19 @@ function renderAgents() {
     el.style.top = a.y + '%';
     el.style.setProperty('--c', a.color || '#c4b5fd');
     el.classList.toggle('me', a.id === meId);
-    el.classList.toggle('demo', isDemo(a));
     el.classList.toggle('offline', !isOnline(a));
     const bubble = el.querySelector('.bubble');
     const text = bubbleFor(a);
     const bt = el.querySelector('.bt');
     if (bt.textContent !== text) bt.textContent = text;
     bubble.classList.toggle('show', !!text && isOnline(a));
+    bubble.classList.toggle('busy', !!doingTaskOf(a));
     bubble.title = bubbleFull(a);
     const b = el.querySelector('.tag b');
     if (b.textContent !== (a.initial || 'ㅇ')) b.textContent = a.initial || 'ㅇ';
     const nm = el.querySelector('.nm');
     if (nm.textContent !== a.name) nm.textContent = a.name;
-    el.querySelector('.demo-tag').style.display = isDemo(a) ? '' : 'none';
-    el.title = `${a.name}${isDemo(a) ? ' (예시 요원)' : ''} · ${bubbleFull(a) || '대기 중'}`;
+    el.title = `${a.name} · ${bubbleFull(a) || '대기 중'}${a.id === meId ? ' (나)' : ' · 클릭해서 일 맡기기'}`;
   }
   for (const [id, el] of agentEls) {
     if (!alive.has(id)) { el.remove(); agentEls.delete(id); }
@@ -483,13 +536,13 @@ function renderAgents() {
 
 function renderFacepile() {
   const box = $('#facepile');
-  const online = realOnline().sort((a, b) => (a.id === meId ? -1 : b.id === meId ? 1 : 0));
-  const demoCount = onlineAgents().filter(isDemo).length;
+  const online = Object.values(state.agents).filter(isOnline)
+    .sort((a, b) => (a.id === meId ? -1 : b.id === meId ? 1 : 0));
   box.innerHTML = online.slice(0, 4)
     .map((a) => `<span class="fp" style="--c:${esc(a.color)}" title="${esc(a.name)}">${esc(a.initial)}</span>`)
     .join('') + (online.length > 4 ? `<span class="fp more">+${online.length - 4}</span>` : '');
-  $('#onlineCount').textContent = String(realOnline().length || 1);
-  $('#onlineBadge').title = demoCount ? `접속 중인 피클 ${realOnline().length}명 · 예시 요원 ${demoCount}명` : '접속 중인 피클';
+  $('#onlineCount').textContent = String(online.length);
+  $('#onlineBadge').title = `접속 중인 피클 ${online.length}명`;
   $('#meAvatar').textContent = state.agents[meId]?.initial || 'ㅇ';
   $('#meAvatar').style.setProperty('--accent', state.agents[meId]?.color || '#c4b5fd');
   $('#chatAvatar').textContent = state.agents[meId]?.initial || 'ㅇ';
@@ -497,8 +550,42 @@ function renderFacepile() {
   $('#roomTag').textContent = 'room: ' + room;
 }
 
+/* ────────── 담당 피클 목록 (실제 참여자 + 최근 참여 기억) ────────── */
+function assignableList() {
+  const rows = [];
+  const me = state.agents[meId];
+  if (me) rows.push({ id: me.id, label: `${me.name} (나)`, state: 'me' });
+  Object.values(state.agents)
+    .filter((a) => a.id !== meId && isOnline(a))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'))
+    .forEach((a) => rows.push({ id: a.id, label: `${a.name} · 접속 중`, state: 'on' }));
+  const listed = new Set(rows.map((r) => r.id));
+  knownPeers
+    .filter((p) => !listed.has(p.id) && p.id !== meId)
+    .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
+    .slice(0, 6)
+    .forEach((p) => rows.push({ id: p.id, label: `${p.name || '피클'} · 최근 참여`, state: 'off' }));
+  return rows;
+}
+
+function ownerOptionsHTML(selected, withBlank = true) {
+  const rows = assignableList();
+  let html = withBlank ? `<option value=""${!selected ? ' selected' : ''}>미배정</option>` : '';
+  html += rows.map((r) => `<option value="${esc(r.id)}"${r.id === selected ? ' selected' : ''}>${esc(r.label)}</option>`).join('');
+  if (selected && !rows.some((r) => r.id === selected)) {
+    html += `<option value="${esc(selected)}" selected>${esc(ownerOf(selected)?.name || '알 수 없는 피클')}</option>`;
+  }
+  return html;
+}
+
+function fillOwnerSelect() {
+  const sel = $('#taskOwner');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = ownerOptionsHTML(cur);
+}
+
 /* ────────── 렌더: 회의실 ────────── */
-let lastChatCount = 0;
 function renderMeeting() {
   const participants = inMeeting();
   $('#meetingCount').textContent = String(participants.length);
@@ -508,7 +595,7 @@ function renderMeeting() {
   if (pBox.dataset.sig !== pSig) {
     pBox.dataset.sig = pSig;
     pBox.innerHTML = participants.length
-      ? participants.map((a) => `<span class="chip ${a.id === meId ? 'me' : ''}" style="--c:${esc(a.color)}"><i>${esc(a.initial)}</i>${esc(a.name)}${isDemo(a) ? '<span class="away">예시</span>' : ''}</span>`).join('')
+      ? participants.map((a) => `<span class="chip ${a.id === meId ? 'me' : ''}" style="--c:${esc(a.color)}"><i>${esc(a.initial)}</i>${esc(a.name)}${a.id === meId ? '<span class="away">나</span>' : ''}</span>`).join('')
       : '<span class="chip"><i style="--c:#475569">·</i>아직 아무도 없어요</span>';
   }
 
@@ -519,8 +606,7 @@ function renderMeeting() {
   const inner = $('#chatInner');
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 90;
   const msgs = state.messages.slice(-200);
-  $('#chatEmpty').hidden = true;
-  $('#chatHint').hidden = msgs.length > 6;
+  $('#chatHint').hidden = msgs.length > 0;
   inner.hidden = msgs.length === 0;
   if (msgs.length && inner.dataset.sig !== msgs[msgs.length - 1].id) {
     inner.innerHTML = msgs.map((m) => `
@@ -548,22 +634,29 @@ function renderMeeting() {
         <button class="cb" data-act="toggle">✓</button>
         <span class="tt">${esc(t.text)}</span>
         <button class="del" data-act="del" title="삭제">✕</button>
-      </li>`).join('') || '<li style="color:#5b6680;font-size:10.5px;padding:8px 6px">결정사항을 추가해 보세요</li>';
+      </li>`).join('') || '<li class="todo-empty">아직 결정사항이 없어요</li>';
   }
 }
 
 /* ────────── 렌더: 작업실 ────────── */
 function renderKanban() {
   const tasks = Object.values(state.tasks).filter((t) => !t.deleted);
-  const sig = tasks.map((t) => `${t.id}:${t.status}:${t.updatedAt}:${t.title}:${t.note || ''}:${t.owner}:${t.priority}`).join('|');
+  const rosterSig = assignableList().map((a) => a.id + ':' + a.label).join(',');
+  const sig = tasks.map((t) => `${t.id}:${t.status}:${t.updatedAt}:${t.title}:${t.note || ''}:${t.owner}:${t.priority}`).join('|') + '||' + rosterSig;
   const board = $('#kanban');
   if (board.dataset.sig === sig) return;
   board.dataset.sig = sig;
+  const note = $('#kanbanNote');
+  if (note) note.hidden = tasks.length > 0;
   for (const status of ['todo', 'doing', 'done']) {
     const items = tasks.filter((t) => t.status === status).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     const box = $('#col-' + status);
     $(`[data-count="${status}"]`).textContent = String(items.length);
-    const emptyText = { todo: ['🗂️', '대기 중인 작업이 없어요'], doing: ['⚡', '진행 중인 작업이 없어요'], done: ['🎉', '완료된 작업이 없어요'] }[status];
+    const emptyText = {
+      todo: ['🗂️', '대기 중인 작업이 없어요'],
+      doing: ['⚡', '진행 중인 작업이 없어요'],
+      done: ['🎉', '완료된 작업이 없어요'],
+    }[status];
     box.innerHTML = items.length
       ? items.map((t) => cardHTML(t)).join('')
       : `<div class="empty-col"><span class="e">${emptyText[0]}</span>${emptyText[1]}</div>`;
@@ -572,6 +665,7 @@ function renderKanban() {
 
 function cardHTML(t) {
   const owner = ownerOf(t.owner);
+  const mine = t.owner === meId;
   const pCls = t.priority === '높음' ? 'high' : t.priority === '낮음' ? 'low' : 'mid';
   const moves = [];
   if (t.status === 'todo') moves.push(['doing', '▶', '시작']);
@@ -581,15 +675,18 @@ function cardHTML(t) {
   }
   if (t.status === 'done') moves.push(['doing', '↺', '되돌리기']);
   return `
-    <article class="card ${t.status === 'done' ? 'done' : ''}" draggable="true" data-task="${esc(t.id)}">
+    <article class="card ${t.status === 'done' ? 'done' : ''} ${mine ? 'mine' : ''}" draggable="true" data-task="${esc(t.id)}">
       <div class="ch">
         <span class="prio ${pCls}">${esc(t.priority)}</span>
         <span class="who"><i style="--c:${esc(owner?.color || '#64748b')}">${esc(owner?.initial || '·')}</i>${esc(owner?.name || '미지정')}</span>
+        ${mine ? '<span class="my-tag">내 작업</span>' : ''}
       </div>
       <div class="ct">${esc(t.title)}</div>
       ${t.note ? `<div class="cn">${esc(t.note)}</div>` : ''}
       <div class="cf">
+        <select class="opick" data-owner title="담당 피클 변경">${ownerOptionsHTML(t.owner)}</select>
         <span class="sp"></span>
+        ${mine ? '' : '<button class="mv take" data-take="1" title="내가 맡기">내가 맡기</button>'}
         ${moves.map(([s, icon, label]) => `<button class="mv" data-move="${s}" title="${label}">${icon}</button>`).join('')}
         <button class="mv del" data-del="1" title="삭제">🗑</button>
       </div>
@@ -613,12 +710,15 @@ function renderHud() {
     .sort((a, b) => (a.id === meId ? -1 : b.id === meId ? 1 : 0));
   $('#hudAgentCount').textContent = String(agents.length);
   list.innerHTML = agents.map((a) => `
-    <li><div class="hud-agent">
+    <li><button class="hud-agent" type="button" data-agent="${esc(a.id)}" title="${esc(a.id === meId ? '내 프로필' : a.name + '에게 일 맡기기')}">
       <i style="--c:${esc(a.color)}">${esc(a.initial)}</i>
       <span class="hn">${esc(a.name)}</span>
-      ${isDemo(a) ? '<span class="demo">예시</span>' : '<span class="dot"></span>'}
+      ${a.id === meId ? '<span class="me-chip">나</span>' : '<span class="dot"></span>'}
       <span class="hs">${esc(short(bubbleFull(a), 12) || '대기 중')}</span>
-    </div></li>`).join('');
+    </button></li>`).join('')
+    + (agents.length <= 1
+      ? '<li class="hud-empty">아직 다른 피클이 들어오지 않았어요.<br>초대 링크를 공유해 보세요!</li>'
+      : '');
 
   const doing = Object.values(state.tasks)
     .filter((t) => t.status === 'doing' && !t.deleted)
@@ -712,6 +812,7 @@ function switchTab(tab) {
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + tab));
   requestAnimationFrame(moveGlider);
   if (tab === 'meeting') $('#chatList').scrollTop = $('#chatList').scrollHeight;
+  if (tab === 'work') clearBadge();
   // 방으로 들어가면 내 피클도 그 공간으로 이동
   const a = state.agents[meId];
   if (a && (tab === 'meeting' || tab === 'work') && a.room !== tab) {
@@ -772,6 +873,69 @@ function saveProfile() {
   toast('프로필을 저장했어요 ✨');
 }
 
+/* ────────── 일 맡기기 모달 (지도·명단에서 피클 클릭) ────────── */
+let assignTargetId = null;
+
+function openAssign(id) {
+  const a = state.agents[id] || recallPeer(id);
+  if (!a || id === meId) return;
+  assignTargetId = id;
+  const av = $('#asAvatar');
+  av.textContent = a.initial || 'ㅇ';
+  av.style.setProperty('--c', a.color || '#c4b5fd');
+  $('#asName').textContent = a.name || '피클';
+  $('#asStatus').textContent = bubbleFull(a) || '대기 중';
+  const online = isOnline(a);
+  const st = $('#asState');
+  st.textContent = online ? '접속 중' : '최근 참여';
+  st.className = 'at-state ' + (online ? 'on' : 'off');
+  $('#asTitle').value = '';
+  $('#asNote').value = '';
+  $('#asPriority').value = '보통';
+  $('#asStatusSel').value = 'todo';
+  openModal('assignModal');
+  setTimeout(() => $('#asTitle').focus(), 60);
+}
+
+function submitAssign() {
+  const target = state.agents[assignTargetId] || recallPeer(assignTargetId);
+  if (!target) { closeModal('assignModal'); return; }
+  const title = $('#asTitle').value.trim();
+  if (!title) {
+    toast('작업 제목을 적어 주세요');
+    $('#asTitle').focus();
+    return;
+  }
+  if (!state.agents[target.id]) {
+    // 최근 참여 기억만 있는 피클: 담당 표시가 되도록 명단에 올려 둔다
+    state.agents[target.id] = {
+      id: target.id,
+      name: target.name || '피클',
+      initial: target.initial || 'ㅇ',
+      color: target.color || '#c4b5fd',
+      status: '',
+      x: 44, y: 32, room: 'work',
+      updatedAt: 0, _seen: 0,
+    };
+  }
+  const now = Date.now();
+  emit('task', {
+    task: {
+      id: uid(),
+      title,
+      owner: target.id,
+      priority: $('#asPriority').value,
+      note: $('#asNote').value.trim(),
+      status: $('#asStatusSel').value,
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+  closeModal('assignModal');
+  toast(`🗂️ ${target.name || '피클'}에게 "${short(title, 14)}" 맡겼어요`);
+  assignTargetId = null;
+}
+
 /* ────────── 모달 공통 ────────── */
 function openModal(id) {
   const m = $('#' + id);
@@ -782,7 +946,7 @@ function openModal(id) {
 function closeModal(id) {
   const m = $('#' + id);
   m.hidden = true;
-  document.body.classList.remove('modal-open');
+  if (!$$('.overlay').some((o) => !o.hidden)) document.body.classList.remove('modal-open');
 }
 
 /* ────────── 이벤트 연결 ────────── */
@@ -797,6 +961,13 @@ function wire() {
   $('#mySeatBtn').addEventListener('click', () => { moveMe(44, 32); toast('📍 내 자리로 돌아왔어요'); });
   $('#copyLinkBtn').addEventListener('click', copyInvite);
   $('#hudInvite')?.addEventListener('click', copyInvite);
+
+  $('#hudAgents').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-agent]');
+    if (!btn) return;
+    if (btn.dataset.agent === meId) openProfile();
+    else openAssign(btn.dataset.agent);
+  });
 
   $('#chatForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -852,25 +1023,28 @@ function wire() {
       $('#taskTitle').focus();
     }
   });
+  $('#taskOwner').addEventListener('focus', fillOwnerSelect);
   $('#cancelTaskBtn').addEventListener('click', () => { taskForm.hidden = true; taskForm.reset(); });
   taskForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const title = $('#taskTitle').value.trim();
     if (!title) return;
+    const owner = $('#taskOwner').value;
+    const now = Date.now();
     const task = {
       id: uid(),
       title,
-      owner: $('#taskOwner').value,
+      owner,
       priority: $('#taskPriority').value,
       note: $('#taskNote').value.trim(),
       status: 'todo',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     };
     emit('task', { task });
     taskForm.reset();
     taskForm.hidden = true;
-    toast('🗂️ 새 작업을 지시했어요');
+    toast(owner ? `🗂️ ${ownerName(owner)}에게 지시했어요` : '🗂️ 미배정 작업으로 추가했어요');
   });
 
   $('#kanban').addEventListener('click', (e) => {
@@ -881,8 +1055,34 @@ function wire() {
     if (!cur) return;
     const move = e.target.closest('button[data-move]');
     const del = e.target.closest('button[data-del]');
+    const take = e.target.closest('button[data-take]');
     if (move) emit('task', { task: { ...cur, status: move.dataset.move, updatedAt: Date.now() } });
     else if (del) emit('task', { task: { ...cur, deleted: true, updatedAt: Date.now() } });
+    else if (take) {
+      emit('task', { task: { ...cur, owner: meId, updatedAt: Date.now() } });
+      toast(`🙋 "${short(cur.title, 16)}" 내가 맡았어요`);
+    }
+  });
+
+  $('#kanban').addEventListener('change', (e) => {
+    const sel = e.target.closest('select[data-owner]');
+    if (!sel) return;
+    const card = sel.closest('.card[data-task]');
+    const cur = card && state.tasks[card.dataset.task];
+    if (!cur) return;
+    const owner = sel.value || '';
+    if (owner === (cur.owner || '')) return;
+    if (owner && !state.agents[owner]) {
+      const p = recallPeer(owner);
+      if (p) {
+        state.agents[owner] = {
+          id: p.id, name: p.name, initial: p.initial, color: p.color,
+          status: p.status || '', x: 44, y: 32, room: 'work', updatedAt: 0, _seen: 0,
+        };
+      }
+    }
+    emit('task', { task: { ...cur, owner, updatedAt: Date.now() } });
+    toast(owner ? `🤝 담당을 ${ownerName(owner)}에게 넘겼어요` : '🤝 담당을 미배정으로 바꿨어요');
   });
 
   // 드래그 앤 드롭
@@ -921,6 +1121,9 @@ function wire() {
   });
   $('#pfSave').addEventListener('click', saveProfile);
 
+  $('#asSubmit').addEventListener('click', submitAssign);
+  $('#asTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitAssign(); } });
+
   $('#dbBtn').addEventListener('click', () => openModal('dbModal'));
   $$('[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(b.dataset.close)));
   $$('.overlay').forEach((o) => o.addEventListener('click', (e) => { if (e.target === o) closeModal(o.id); }));
@@ -943,12 +1146,7 @@ function wire() {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) { publishMe(); }
   });
-}
-
-function fillOwnerSelect() {
-  const sel = $('#taskOwner');
-  const agents = Object.values(state.agents).sort((a, b) => (a.id === meId ? -1 : b.id === meId ? 1 : 0));
-  sel.innerHTML = agents.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}${a.id === meId ? ' (나)' : isDemo(a) ? ' · 예시' : ''}</option>`).join('');
+  window.addEventListener('beforeunload', rememberPeers);
 }
 
 function fillDbModal() {
@@ -1029,7 +1227,7 @@ requestAnimationFrame(() => { moveGlider(); setTimeout(moveGlider, 120); });
 startSync();
 
 // 접속 상태(온라인/오프라인) 주기적 갱신
-setInterval(() => { renderAgents(); renderFacepile(); renderHud(); }, 20000);
+setInterval(() => { renderAgents(); renderFacepile(); renderHud(); rememberPeers(); }, 20000);
 
 // 내 피클 주기적 생존 신호
 setInterval(() => {
@@ -1046,6 +1244,7 @@ window.__po = {
   get state() { return state; },
   get bus() { return bus; },
   get mode() { return mode; },
+  get peers() { return knownPeers; },
   room,
   meId,
 };
@@ -1054,7 +1253,7 @@ window.__po = {
 window.addEventListener('storage', (e) => {
   if (e.key !== stateKey || !e.newValue) return;
   try {
-    const next = JSON.parse(e.newValue);
+    const next = purgeDemoData(JSON.parse(e.newValue));
     if (next.agents) {
       state = { ...emptyState(), ...next };
       ensureMe();
