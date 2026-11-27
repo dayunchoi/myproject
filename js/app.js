@@ -648,6 +648,8 @@ function renderAiMembers() {
   if (!client || !client.connected) {
     if (countEl) countEl.textContent = '—';
     box.innerHTML = `<p class="empty-hint">${ai.config.key ? '연결 중이거나 연결에 문제가 있어요.' : '연결하면 이 방에 들어와 있는 AI가 여기에 보여요.'}</p>`;
+    const offHint = $('#aiInviteHint');
+    if (offHint) offHint.textContent = '방 주인 키를 넣으면 바로 발급돼요';
     return;
   }
   const members = client.members || [];
