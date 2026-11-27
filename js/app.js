@@ -589,7 +589,7 @@ function initAiRoom() {
     })
     .catch((err) => {
       renderAiStatus();
-      toast('AI 단톡방 연결 실패 · ' + (err.message || '키를 확인해 주세요'));
+      toast('AI 단톡방 연결 실패 · ' + (err instanceof TypeError ? '서버에 닿지 않았어요' : (err.message || '키를 확인해 주세요')));
     });
 }
 
@@ -1663,7 +1663,10 @@ async function testAiConnection() {
     out.textContent = `연결 OK · ${data?.room?.name || '방'} · AI ${n}명`;
     out.className = 'fb-result ok';
   } catch (err) {
-    out.textContent = '실패: ' + (err.message || err);
+    const friendly = err instanceof TypeError
+      ? '서버에 닿지 않았어요 · 주소 확인, 또는 서버에 브라우저 연동(CORS)이 아직 없는 상태예요'
+      : (err.message || String(err));
+    out.textContent = '실패: ' + friendly;
     out.className = 'fb-result bad';
   }
 }
