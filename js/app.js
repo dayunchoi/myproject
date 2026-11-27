@@ -761,11 +761,12 @@ function renderHero() {
   const team = $('#teamCount');
   if (team) {
     const names = new Set();
+    const myName = (state.agents[meId] && state.agents[meId].name) || '와플';
     if (aiConnected()) {
       for (const m of ai.room.members || []) if (m.is_active && m.ai_name !== '와플') names.add(m.ai_name);
     } else {
-      for (const a of onlineAgents()) if (a.id !== meId) names.add(a.name);
-      for (const p of knownPeers) names.add(p.name);
+      for (const a of onlineAgents()) if (a.id !== meId && a.name !== myName) names.add(a.name);
+      for (const p of knownPeers) if (p.name !== myName) names.add(p.name);
     }
     team.textContent = String(names.size);
   }
