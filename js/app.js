@@ -4,7 +4,7 @@
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=10';
+import { NostrBus } from './nostr.js?v=11';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -55,8 +55,8 @@ const meId = (() => {
   return id;
 })();
 
-const stateKey = 'po.state.3.' + room;
-const peersKey = 'po.peers.' + room;
+const stateKey = 'po.state.4.' + room;
+const peersKey = 'po.peers.2.' + room;
 const seen = new Set();
 let state = emptyState();
 let mode = localStorage.getItem('po.mode') === 'firebase' ? 'firebase' : 'nostr';
@@ -293,7 +293,7 @@ function applyOp(op, remote = false, createdAtSec = 0) {
       cur._seen = Math.max(cur._seen || 0, seenTs);
       changed = true;
     }
-    if (isNewPeer && op.by !== meId) toast(`👋 ${a.name || '피클'} 피클이 들어왔어요`);
+    if (isNewPeer && op.by !== meId && now - seenTs < 90000) toast(`👋 ${a.name || '피클'} 피클이 들어왔어요`);
     if (a.id !== meId) rememberPeers();
   } else if (op.type === 'agenda' && op.agenda) {
     if ((op.agenda.updatedAt || 0) >= (state.agenda.updatedAt || 0)) {

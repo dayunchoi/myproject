@@ -46,7 +46,7 @@ GitHub Pages로 바로 열 수 있고, 로그인·설치 없이 실시간으로 
 1. **Nostr 공용 릴레이 (기본)** — `relay.damus.io`, `nos.lol`, `relay.nostr.band`, `relay.primal.net` 에
    방(`?room=dayun-office`) 단위 이벤트를 publish/subscribe. 브라우저에서 키를 만들어 서명하므로
    계정도 2FA도 필요 없습니다. (`js/nostr.js` + 저장소에 포함된 `@noble/secp256k1`)
-   이벤트 태그는 `pickle-office-v2:<방이름>` 그대로입니다.
+   이벤트 태그는 `pickle-office-v3:<방이름>` (v3 리뉴얼로 깨끗하게 리셋).
 2. **Firebase Realtime Database (선택)** — `⚙️ DB 설정`에 RTDB URL을 넣으면 REST + 실시간 스트리밍 모드로 전환.
 3. **BroadcastChannel + localStorage** — 같은 브라우저 탭끼리 즉시 동기화, 새로고침해도 상태 유지.
 
