@@ -371,7 +371,7 @@ input,select{outline:none}
   border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:var(--shadow);
 }
-.chat-panel{display:flex;flex-direction:column;height:calc(100dvh - 206px);min-height:480px;overflow:hidden}
+.chat-panel{display:flex;flex-direction:column;height:min(640px, calc(100dvh - 206px));min-height:480px;overflow:hidden}
 .agenda-bar{
   display:flex;align-items:center;gap:10px;padding:11px 14px;
   border-bottom:1px solid var(--line-soft);background:rgba(196,181,253,.04);
