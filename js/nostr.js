@@ -9,7 +9,7 @@ const te = new TextEncoder();
 const N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
 
 /* 방 태그 버전 — v3 리뉴얼. 예전 테스트 이벤트와 섞이지 않게 prefix 를 올린다 */
-export const TOPIC_PREFIX = 'pickle-office-v4:';
+export const TOPIC_PREFIX = 'pickle-office-v5:';
 
 export function bytesToHex(bytes) {
   let s = '';

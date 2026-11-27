@@ -4,7 +4,7 @@
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=11';
+import { NostrBus } from './nostr.js?v=12';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -55,8 +55,8 @@ const meId = (() => {
   return id;
 })();
 
-const stateKey = 'po.state.5.' + room;
-const peersKey = 'po.peers.3.' + room;
+const stateKey = 'po.state.6.' + room;
+const peersKey = 'po.peers.4.' + room;
 const seen = new Set();
 let state = emptyState();
 let mode = localStorage.getItem('po.mode') === 'firebase' ? 'firebase' : 'nostr';
