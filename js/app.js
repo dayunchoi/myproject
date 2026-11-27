@@ -1000,6 +1000,9 @@ switchTab('map');
 requestAnimationFrame(() => { moveGlider(); setTimeout(moveGlider, 120); });
 startSync();
 
+// 접속 상태(온라인/오프라인) 주기적 갱신
+setInterval(() => { renderAgents(); renderFacepile(); renderHud(); }, 20000);
+
 // 내 피클 주기적 생존 신호
 setInterval(() => {
   if (document.hidden) return;

@@ -342,7 +342,10 @@ input,select{outline:none}
 .hud-agenda span{font-size:8px;font-weight:800;letter-spacing:.4px;color:#8b7fc0}
 .hud-agenda p{margin:4px 0 0;font-size:10px;line-height:1.5;color:#c7d0e1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .map-hud .empty{font-size:9.5px;color:#5b6680;padding:4px 0}
-@media (min-width:1480px){.map-hud{display:block}}
+@media (min-width:1480px){
+  .map-hud{display:block}
+  .map-wrap{--map-w:min(1180px, calc((100dvh - 200px) * 1.2495), calc(100vw - 600px))}
+}
 
 .map-footer{
   display:flex;align-items:center;justify-content:space-between;gap:14px;
