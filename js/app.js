@@ -940,6 +940,15 @@ setInterval(() => {
   emit('agent', { agent: clean });
 }, 28000);
 
+// 디버그/검증용 (페이지 자체 동작에는 영향 없음)
+window.__po = {
+  get state() { return state; },
+  get bus() { return bus; },
+  get mode() { return mode; },
+  room,
+  meId,
+};
+
 // 다른 탭/기기에서 온 op 는 BroadcastChannel 로, 릴레이는 NostrBus 로
 window.addEventListener('storage', (e) => {
   if (e.key !== stateKey || !e.newValue) return;

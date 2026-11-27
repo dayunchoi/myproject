@@ -105,6 +105,8 @@ export class NostrBus {
     this.seen = new Set();
     this.ready = 0;
     this.failed = 0;
+    this.oks = 0;
+    this.rejects = 0;
     this.subId = 'po-' + Math.random().toString(36).slice(2, 8);
     this.closed = false;
   }
@@ -207,9 +209,12 @@ export class NostrBus {
       this.onEvent?.(op, ev);
     } else if (type === 'OK') {
       if (data[2] === false) {
+        this.rejects++;
         console.warn('[nostr] relay rejected', url, data[3]);
         const rec = this.sockets.get(url);
         if (rec) { rec.rejected = (rec.rejected || 0) + 1; }
+      } else {
+        this.oks++;
       }
     } else if (type === 'NOTICE') {
       console.info('[nostr] notice', url, data[1]);
