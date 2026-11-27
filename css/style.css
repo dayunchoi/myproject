@@ -1422,3 +1422,10 @@ button.hpill:hover { border-color: var(--wood); color: var(--wood-ink); }
 /* 움직임 끄기 */
 body.motion-off .agent { transition: none; }
 body.motion-off .agent:hover { transform: translate(-50%, -100%); }
+
+/* 모바일: 연결 칩은 점 하나로 압축해 헤더 한 줄 유지 */
+@media (max-width: 560px) {
+  .conn-chip { width: 38px; padding: 0; justify-content: center; flex: none; }
+  .conn-chip span { display: none; }
+  .part-badge { max-width: 46%; }
+}
