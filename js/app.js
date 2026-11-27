@@ -3,7 +3,7 @@
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=7';
+import { NostrBus } from './nostr.js?v=8';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -519,7 +519,8 @@ function renderMeeting() {
   const inner = $('#chatInner');
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 90;
   const msgs = state.messages.slice(-200);
-  $('#chatEmpty').hidden = msgs.length > 0;
+  $('#chatEmpty').hidden = true;
+  $('#chatHint').hidden = msgs.length > 6;
   inner.hidden = msgs.length === 0;
   if (msgs.length && inner.dataset.sig !== msgs[msgs.length - 1].id) {
     inner.innerHTML = msgs.map((m) => `
