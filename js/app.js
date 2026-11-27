@@ -3,7 +3,7 @@
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=6';
+import { NostrBus } from './nostr.js?v=7';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -149,7 +149,7 @@ const isOnline = (a) => {
   if (!a) return false;
   if (a.id === meId) return true;
   if (isDemo(a)) return true;
-  return Date.now() - (a._seen || 0) < 120000;
+  return Date.now() - (a._seen || 0) < 75000;
 };
 const onlineAgents = () => Object.values(state.agents).filter(isOnline);
 const realOnline = () => onlineAgents().filter((a) => !isDemo(a));
