@@ -3,7 +3,7 @@
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=2';
+import { NostrBus } from './nostr.js?v=3';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -94,7 +94,7 @@ function ensureMe() {
       initial: saved.initial || 'ㅇ',
       color: saved.color || '#c4b5fd',
       status: saved.status || '오피스 맵 정리 중',
-      x: 44, y: 26.5, room: 'work',
+      x: 44, y: 32, room: 'work',
       updatedAt: t, _seen: t,
     };
     state.agents[meId] = a;
@@ -779,7 +779,7 @@ function wire() {
 
   initMap();
 
-  $('#mySeatBtn').addEventListener('click', () => { moveMe(44, 26.5); toast('📍 내 자리로 돌아왔어요'); });
+  $('#mySeatBtn').addEventListener('click', () => { moveMe(44, 32); toast('📍 내 자리로 돌아왔어요'); });
   $('#copyLinkBtn').addEventListener('click', copyInvite);
   $('#hudInvite')?.addEventListener('click', copyInvite);
 
