@@ -1259,7 +1259,6 @@ function wire() {
   }));
 
   $('#profileBtn').addEventListener('click', openProfile);
-  $('#editMeBtn').addEventListener('click', openProfile);
   $('#themeBtn').addEventListener('click', () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     applyTheme(next);
