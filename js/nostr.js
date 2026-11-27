@@ -3,7 +3,7 @@
    - 외부 CDN 없이 저장소에 포함된 noble-secp256k1 로 서명
    - 공용 릴레이 WebSocket 에 방(room) 단위 이벤트 publish / subscribe
    ───────────────────────────────────────────── */
-import { getPublicKey, ProjectivePoint, utils } from '../lib/noble-secp256k1.js?v=5';
+import { getPublicKey, ProjectivePoint, utils } from '../lib/noble-secp256k1.js?v=6';
 
 const te = new TextEncoder();
 const N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;

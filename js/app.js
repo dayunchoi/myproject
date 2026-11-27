@@ -3,7 +3,7 @@
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=5';
+import { NostrBus } from './nostr.js?v=6';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -664,8 +664,8 @@ function moveMe(x, y) {
 
 function enterZone(zone) {
   const spot = {
-    meeting: [28.5, 42],
-    work: [57, 26.5],
+    meeting: [17, 58],
+    work: [44, 32],
     lounge: [60, 70],
   }[zone];
   moveMe(spot[0], spot[1]);
@@ -714,7 +714,7 @@ function switchTab(tab) {
   // 방으로 들어가면 내 피클도 그 공간으로 이동
   const a = state.agents[meId];
   if (a && (tab === 'meeting' || tab === 'work') && a.room !== tab) {
-    const [x, y] = tab === 'meeting' ? [28.5, 42] : [57, 26.5];
+    const [x, y] = tab === 'meeting' ? [17, 58] : [44, 32];
     a.x = x; a.y = y; a.room = tab; a.updatedAt = Date.now();
     renderAgents();
     saveState();
@@ -804,7 +804,7 @@ function wire() {
     if (!text) return;
     const a = state.agents[meId];
     emit('chat', { msg: { id: uid(), agentId: meId, name: a.name, initial: a.initial, color: a.color, text, ts: Date.now() } });
-    if (a.room !== 'meeting') { a.room = 'meeting'; a.x = 28.5; a.y = 42; a.updatedAt = Date.now(); publishMe(); }
+    if (a.room !== 'meeting') { a.room = 'meeting'; a.x = 17; a.y = 58; a.updatedAt = Date.now(); publishMe(); }
     input.value = '';
     $('#chatList').scrollTop = $('#chatList').scrollHeight;
   });
