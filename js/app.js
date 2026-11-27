@@ -48,18 +48,18 @@ const PART_EMOJI = { trip: '✈️', money: '💳', routine: '🗓️', meeting:
 
 /* 기본 루틴 — 다윤 님의 실제 scheduled-actions 기반 */
 const ROUTINE_SEED = [
-  { id: 'rt-d1', kind: 'daily', when: '08:00', title: '매일 아침 관심 뉴스 요약', note: '경제·금융 · IT·AI · 여행·항공 · 발레·전시 키워드' },
-  { id: 'rt-d2', kind: 'daily', when: '09:05', title: '12월 올영세일 오픈 및 쿠폰 확인', note: '올리브영 12월 세일 첫날 · 쿠폰 3종 확인' },
-  { id: 'rt-d3', kind: 'daily', when: '10:30', title: '네이버페이 매일 클릭 적립', note: '하루 1회 클릭 · 포인트 적립' },
-  { id: 'rt-d4', kind: 'daily', when: '15:00', title: '매일 습관 루틴 챙기기(물·지출)', note: '물 마시기 권하기 · 오늘 지출 체크' },
-  { id: 'rt-d5', kind: 'daily', when: '21:30', title: '카드 가계부 정기 기록', note: '카드 내역 정리 · 예산 대비 확인' },
-  { id: 'rt-d6', kind: 'daily', when: '22:00', title: '매일 습관 루틴 챙기기(마감)', note: '오늘 습관 마감 · 내일 준비' },
-  { id: 'rt-p1', kind: 'periodic', when: '11/29 10:00', title: '올리브영 포인트·네이버 리뷰 확인', note: '포인트 소멸 전 확인 · 리뷰 적립' },
-  { id: 'rt-p2', kind: 'periodic', when: '11/30 23:50', title: '하나오카 1월 22일 예약 오픈', note: '오픈 10분 전 알림 · 예약 대기' },
-  { id: 'rt-p3', kind: 'periodic', when: '12/07 13:50', title: '치이카와 팝업 2차 사전예약', note: '2차 사전예약 오픈 · 1차 매진' },
-  { id: 'rt-p4', kind: 'periodic', when: '2027-01', title: '나고야 피치항공 운항', note: '피치항공 MM · 운항 스케줄 모니터링' },
-  { id: 'rt-p5', kind: 'periodic', when: '2027-05', title: '제주 대한항공 체크인·운항', note: '체크인 오픈 · 창가 좌석' },
-  { id: 'rt-p6', kind: 'periodic', when: '2027-09', title: '신혼여행 에미레이트 체크인·운항', note: '에미레이트 · 체크인·좌석 챙기기' },
+  { id: 'rt-d1', part: 'routine', kind: 'daily', when: '08:00', title: '매일 아침 관심 뉴스 요약', note: '경제·금융 · IT·AI · 여행·항공 · 발레·전시 키워드' },
+  { id: 'rt-d2', part: 'money', kind: 'daily', when: '09:05', title: '12월 올영세일 오픈 및 쿠폰 확인', note: '올리브영 12월 세일 첫날 · 쿠폰 3종 확인' },
+  { id: 'rt-d3', part: 'money', kind: 'daily', when: '10:30', title: '네이버페이 매일 클릭 적립', note: '하루 1회 클릭 · 포인트 적립' },
+  { id: 'rt-d4', part: 'routine', kind: 'daily', when: '15:00', title: '매일 습관 루틴 챙기기(물·지출)', note: '물 마시기 권하기 · 오늘 지출 체크' },
+  { id: 'rt-d5', part: 'money', kind: 'daily', when: '21:30', title: '카드 가계부 정기 기록', note: '카드 내역 정리 · 예산 대비 확인' },
+  { id: 'rt-d6', part: 'routine', kind: 'daily', when: '22:00', title: '매일 습관 루틴 챙기기(마감)', note: '오늘 습관 마감 · 내일 준비' },
+  { id: 'rt-p1', part: 'money', kind: 'periodic', when: '11/29 10:00', title: '올리브영 포인트·네이버 리뷰 확인', note: '포인트 소멸 전 확인 · 리뷰 적립' },
+  { id: 'rt-p2', part: 'trip', kind: 'periodic', when: '11/30 23:50', title: '하나오카 1월 22일 예약 오픈', note: '오픈 10분 전 알림 · 예약 대기' },
+  { id: 'rt-p3', part: 'trip', kind: 'periodic', when: '12/07 13:50', title: '치이카와 팝업 2차 사전예약', note: '2차 사전예약 오픈 · 1차 매진' },
+  { id: 'rt-p4', part: 'trip', kind: 'periodic', when: '2027-01', title: '나고야 피치항공 운항', note: '피치항공 MM · 운항 스케줄 모니터링' },
+  { id: 'rt-p5', part: 'trip', kind: 'periodic', when: '2027-05', title: '제주 대한항공 체크인·운항', note: '체크인 오픈 · 창가 좌석' },
+  { id: 'rt-p6', part: 'trip', kind: 'periodic', when: '2027-09', title: '신혼여행 에미레이트 체크인·운항', note: '에미레이트 · 체크인·좌석 챙기기' },
 ];
 
 /* ────────── 방 / 나 ────────── */
@@ -206,7 +206,11 @@ function loadState() {
 function seedRoutines() {
   let changed = false;
   ROUTINE_SEED.forEach((r, i) => {
-    if (state.routines[r.id]) return;
+    const existing = state.routines[r.id];
+    if (existing) {
+      if (!existing.part && r.part) { existing.part = r.part; changed = true; }
+      return;
+    }
     state.routines[r.id] = { ...r, enabled: true, order: i, updatedAt: 1 };
     changed = true;
   });
@@ -724,14 +728,22 @@ function tasksOf(status) {
 function routinesOf(kind) {
   return Object.values(state.routines).filter((r) => !r.deleted && r.kind === kind && r.enabled !== false);
 }
+function routinePart(r) {
+  if (r.part) return r.part;
+  const title = String(r.title || '');
+  const text = `${title} ${r.note || ''}`;
+  if (PART_KEYWORDS.trip.test(text) && !/뉴스|요약|브리핑/.test(title)) return 'trip';
+  if (PART_KEYWORDS.money.test(text)) return 'money';
+  return 'routine';
+}
+
 function partItems(part) {
   if (part === 'command') return tasksOf('todo');
   if (part === 'work') return tasksOf('doing');
   if (part === 'meeting') return [];
   if (part === 'lounge') return Object.values(state.memos).filter((m) => !m.deleted);
-  const re = PART_KEYWORDS[part] || PART_KEYWORDS.routine;
   return [...routinesOf('daily'), ...routinesOf('weekly'), ...routinesOf('periodic')]
-    .filter((r) => re.test(`${r.title || ''} ${r.note || ''}`));
+    .filter((r) => routinePart(r) === part);
 }
 function partCount(part) {
   if (part === 'meeting') return aiConnected() ? (ai.room.messages || []).length : 0;
