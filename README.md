@@ -28,3 +28,15 @@ GitHub Pages로 바로 열 수 있고, 로그인·설치 없이 실시간으로 
 ## 내 피클 꾸미기
 
 우측 상단 아바타 → 이름, 한글 자음 1글자, 색상, 상태 메시지 변경. 저장하면 다른 기기에도 반영됩니다.
+
+## 배포 메모
+
+GitHub Pages 소스는 **`gh-pages` 브랜치**입니다. (저장소 Settings → Pages에서 확인)
+수정 후 배포:
+
+```bash
+git push origin main
+git push -f origin main:gh-pages
+```
+
+Pages 소스를 `main` / root 로 바꾸면 `gh-pages` 푸시 없이도 자동 배포됩니다.
