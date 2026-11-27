@@ -1188,12 +1188,13 @@ function assignableList() {
     }
   }
   Object.values(state.agents)
-    .filter((a) => a.id !== meId && isOnline(a))
+    .filter((a) => a.id !== meId && isOnline(a) && a.name !== ((state.agents[meId] && state.agents[meId].name) || ''))
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'))
     .forEach((a) => rows.push({ id: a.id, label: `${a.name} · 접속 중`, state: 'on' }));
   const listed = new Set(rows.map((r) => r.id));
+  const myName = (state.agents[meId] && state.agents[meId].name) || '';
   knownPeers
-    .filter((p) => !listed.has(p.id) && p.id !== meId && (p.lastSeen || 0) > Date.now() - PEER_RECENT_MS)
+    .filter((p) => !listed.has(p.id) && p.id !== meId && p.name !== myName && (p.lastSeen || 0) > Date.now() - PEER_RECENT_MS)
     .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
     .slice(0, 6)
     .forEach((p) => rows.push({ id: p.id, label: `${p.name || '피클'} · 최근 참여`, state: 'off' }));
@@ -1220,15 +1221,16 @@ function fillOwnerSelect(sel) {
 function assistantList() {
   const map = new Map();
   const me = state.agents[meId];
+  const myName = (me && me.name) || '';
   if (me) map.set(me.id, { ...me, online: true });
   for (const a of Object.values(state.agents)) {
     if (a.id === meId || LEGACY_ID.test(a.id)) continue;
+    if (myName && a.name === myName) continue; // 같은 이름으로 남은 예전 내 기록은 숨깁니다
     map.set(a.id, { ...a, online: isOnline(a) });
   }
-  const myName = (state.agents[meId] && state.agents[meId].name) || '';
   for (const p of knownPeers) {
     if (map.has(p.id)) continue;
-    if (myName && p.name === myName) continue; // 내 이름으로 남은 예전 기록은 숨깁니다
+    if (myName && p.name === myName) continue;
     map.set(p.id, {
       id: p.id, name: p.name, initial: p.initial, color: p.color,
       status: p.status || '', room: 'command', online: false, lastSeen: p.lastSeen,
