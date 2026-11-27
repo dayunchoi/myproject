@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14">
+<title>와플 &amp; 피클 합동 비서실</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="nav">
+    <div class="nav-left">
+      <div class="logo" aria-hidden="true">
+        <span class="logo-face"><i></i><i></i></span>
+      </div>
+      <div class="brand">
+        <b>와플 &amp; 피클</b>
+        <span>합동 비서실</span>
+      </div>
+      <button class="conn" id="connBadge" title="실시간 연결 상태">
+        <i class="dot"></i>
+        <span id="connText">연결 중…</span>
+        <em id="connDetail"></em>
+      </button>
+    </div>
+
+    <nav class="tabs" id="tabs" aria-label="방 선택">
+      <button data-tab="map" class="active"><span class="ic">🗺️</span><span>오피스 맵</span></button>
+      <button data-tab="meeting"><span class="ic">💬</span><span>회의실</span></button>
+      <button data-tab="work"><span class="ic">🛠️</span><span>작업실</span></button>
+      <span class="tab-glider" id="tabGlider"></span>
+    </nav>
+
+    <div class="nav-right">
+      <div class="facepile" id="facepile"></div>
+      <div class="online" id="onlineBadge" title="접속 중인 피클"><i class="dot"></i><b id="onlineCount">1</b> ON</div>
+      <button class="icon-btn me-btn" id="profileBtn" title="내 피클 프로필 설정">
+        <span class="mini-avatar" id="meAvatar">ㅇ</span>
+      </button>
+      <button class="icon-btn" id="dbBtn" title="DB · 동기화 설정">⚙️</button>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- ══════════ 오피스 맵 ══════════ -->
+    <section id="view-map" class="view active">
+      <div class="room-head">
+        <div class="room-title">
+          <h1><span>🗺️</span> 오피스 맵</h1>
+          <p>피클 요원들이 일하는 합동 비서실 · 원하는 자리를 클릭하면 내 피클이 이동해요</p>
+        </div>
+        <div class="room-actions">
+          <button class="ghost-btn" id="mySeatBtn">📍 내 자리로</button>
+          <button class="ghost-btn" id="copyLinkBtn">🔗 초대 링크 복사</button>
+        </div>
+      </div>
+
+      <div class="map-wrap">
+        <div class="map-shell" id="mapShell">
+          <div class="map-stage" id="mapStage">
+            <div class="zone zone-meeting" data-zone="meeting">
+              <button class="zone-label" data-enter="meeting">
+                <span class="zi">🏛️</span>
+                <span class="zt"><b>대회의실</b><em>클릭해서 회의 참여</em></span>
+              </button>
+            </div>
+            <div class="zone zone-work" data-zone="work">
+              <button class="zone-label" data-enter="work">
+                <span class="zi">💻</span>
+                <span class="zt"><b>작업실</b><em>클릭해서 작업 보기</em></span>
+              </button>
+            </div>
+            <div class="zone zone-lounge" data-zone="lounge">
+              <button class="zone-label" data-enter="lounge">
+                <span class="zi">☕</span>
+                <span class="zt"><b>라운지</b><em>휴식 · 자유 수다</em></span>
+              </button>
+            </div>
+
+            <div class="agent-layer" id="agentLayer"></div>
+
+            <div class="map-vignette" aria-hidden="true"></div>
+            <div class="map-live" id="mapLive"><i class="dot"></i> LIVE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="map-footer">
+        <span class="hint"><span class="kbd">클릭</span> 공간을 클릭하면 이동하거나 회의·작업이 이어집니다</span>
+        <span class="legend">
+          <span><i class="lg me"></i>내 피클</span>
+          <span><i class="lg demo"></i>예시 요원</span>
+          <span id="roomTag" class="room-tag">room: dayun-office</span>
+        </span>
+      </div>
+    </section>
+
+    <!-- ══════════ 회의실 ══════════ -->
+    <section id="view-meeting" class="view">
+      <div class="room-head">
+        <div class="room-title">
+          <h1><span>💬</span> 회의실</h1>
+          <p>안건을 정하고, 이야기하고, 결정사항을 남겨요</p>
+        </div>
+        <div class="room-actions">
+          <span class="pill" id="meetingLive"><i class="dot"></i><b id="meetingCount">0</b>명 참여 중</span>
+        </div>
+      </div>
+
+      <div class="meeting-grid">
+        <div class="panel chat-panel">
+          <div class="agenda-bar">
+            <span class="agenda-label">현재 안건</span>
+            <input id="agendaInput" maxlength="120" placeholder="회의 안건을 입력하세요" autocomplete="off">
+            <span class="saved" id="agendaSaved">저장됨</span>
+          </div>
+
+          <div class="chat-list" id="chatList"></div>
+
+          <form class="chat-input" id="chatForm">
+            <span class="mini-avatar" id="chatAvatar">ㅇ</span>
+            <input id="chatInput" maxlength="400" placeholder="메시지를 입력하고 Enter" autocomplete="off">
+            <button type="submit" title="보내기">➤</button>
+          </form>
+        </div>
+
+        <aside class="side">
+          <div class="panel participants">
+            <h3><span>🤝</span> 참여 중인 피클 <em id="partCount">0</em></h3>
+            <div class="chips" id="participantList"></div>
+          </div>
+
+          <div class="panel decisions">
+            <h3><span>✅</span> 결정사항 &amp; 메모</h3>
+            <div class="progress"><div id="todoProgress"></div></div>
+            <div class="progress-text" id="todoProgressText">0 / 0 완료</div>
+            <ul id="todoList"></ul>
+            <form id="todoForm" class="todo-form">
+              <input id="todoInput" maxlength="100" placeholder="결정사항 추가" autocomplete="off">
+              <button type="submit">+</button>
+            </form>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ══════════ 작업실 ══════════ -->
+    <section id="view-work" class="view">
+      <div class="room-head">
+        <div class="room-title">
+          <h1><span>🛠️</span> 작업실</h1>
+          <p>각 피클에게 일을 나눠주고, 진행 상황을 한눈에 봐요</p>
+        </div>
+        <div class="room-actions">
+          <button class="primary-btn" id="newTaskBtn">+ 새 작업 지시</button>
+        </div>
+      </div>
+
+      <form class="task-form" id="taskForm" hidden>
+        <div class="tf-row">
+          <label class="tf-main">
+            <span>작업 제목</span>
+            <input id="taskTitle" maxlength="80" placeholder="예: 나고야 숙소 취소 규정 확인" required>
+          </label>
+          <label>
+            <span>담당 피클</span>
+            <select id="taskOwner"></select>
+          </label>
+          <label>
+            <span>우선순위</span>
+            <select id="taskPriority">
+              <option>보통</option>
+              <option>높음</option>
+              <option>낮음</option>
+            </select>
+          </label>
+        </div>
+        <div class="tf-row">
+          <label class="tf-main">
+            <span>메모</span>
+            <input id="taskNote" maxlength="120" placeholder="간단한 설명이나 기한 (선택)">
+          </label>
+          <button type="submit" class="primary-btn">지시하기</button>
+          <button type="button" class="ghost-btn" id="cancelTaskBtn">취소</button>
+        </div>
+      </form>
+
+      <div class="kanban" id="kanban">
+        <div class="col" data-status="todo">
+          <div class="col-head"><span class="cdot" style="--c:#94a3b8"></span><b>📋 대기 중</b><em class="count" data-count="todo">0</em></div>
+          <div class="cards" id="col-todo" data-status="todo"></div>
+        </div>
+        <div class="col" data-status="doing">
+          <div class="col-head"><span class="cdot" style="--c:#fbbf24"></span><b>⚡ 진행 중</b><em class="count" data-count="doing">0</em></div>
+          <div class="cards" id="col-doing" data-status="doing"></div>
+        </div>
+        <div class="col" data-status="done">
+          <div class="col-head"><span class="cdot" style="--c:#34d399"></span><b>✅ 완료</b><em class="count" data-count="done">0</em></div>
+          <div class="cards" id="col-done" data-status="done"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 토스트 -->
+<div class="toasts" id="toasts"></div>
+
+<!-- 프로필 모달 -->
+<div class="overlay" id="profileModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+    <div class="modal-head">
+      <h2 id="profileTitle">내 피클 프로필</h2>
+      <button class="x-btn" data-close="profileModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="profile-preview">
+        <div class="pv-agent" id="pvAgent">
+          <div class="pv-bubble" id="pvBubble">상태 메시지</div>
+          <div class="pv-body"><span class="pv-e1"></span><span class="pv-e2"></span></div>
+          <div class="pv-shadow"></div>
+        </div>
+        <div class="pv-name"><b id="pvInitial">ㅇ</b><span id="pvName">와플</span></div>
+      </div>
+
+      <label class="field"><span>이름</span><input id="pfName" maxlength="12" placeholder="피클 이름"></label>
+      <label class="field"><span>한글 자음 1글자</span><input id="pfInitial" maxlength="1" placeholder="ㅇ"></label>
+      <div class="field"><span>색상</span>
+        <div class="swatches" id="pfColors">
+          <button type="button" data-color="#c4b5fd" style="--c:#c4b5fd"></button>
+          <button type="button" data-color="#93c5fd" style="--c:#93c5fd"></button>
+          <button type="button" data-color="#86efac" style="--c:#86efac"></button>
+          <button type="button" data-color="#fcd34d" style="--c:#fcd34d"></button>
+          <button type="button" data-color="#f9a8d4" style="--c:#f9a8d4"></button>
+          <button type="button" data-color="#fdba74" style="--c:#fdba74"></button>
+          <button type="button" data-color="#a5b4fc" style="--c:#a5b4fc"></button>
+          <button type="button" data-color="#e2e8f0" style="--c:#e2e8f0"></button>
+        </div>
+      </div>
+      <label class="field"><span>상태 메시지</span><input id="pfStatus" maxlength="40" placeholder="예: 회의 자료 정리 중"></label>
+    </div>
+    <div class="modal-foot">
+      <button class="ghost-btn" data-close="profileModal">취소</button>
+      <button class="primary-btn" id="pfSave">저장하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- DB 설정 모달 -->
+<div class="overlay" id="dbModal" hidden>
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="dbTitle">
+    <div class="modal-head">
+      <h2 id="dbTitle">DB · 동기화 설정</h2>
+      <button class="x-btn" data-close="dbModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="mode-cards">
+        <label class="mode-card" data-mode="nostr">
+          <input type="radio" name="syncMode" value="nostr">
+          <div class="mc-top"><b>Nostr 공용 릴레이</b><span class="tag-free">기본 · 설치 없음</span></div>
+          <p>공개 WebSocket 릴레이로 방 단위 실시간 동기화. 로그인도, 키 발급도 필요 없어요.</p>
+          <div class="relay-list" id="relayList"></div>
+        </label>
+        <label class="mode-card" data-mode="firebase">
+          <input type="radio" name="syncMode" value="firebase">
+          <div class="mc-top"><b>Firebase Realtime DB</b><span class="tag-opt">선택</span></div>
+          <p>직접 만든 Firebase RTDB 주소를 넣으면 그쪽으로 바로 전환돼요. (REST + 실시간 스트리밍)</p>
+        </label>
+      </div>
+
+      <div class="fb-box" id="fbBox">
+        <label class="field"><span>Realtime Database URL</span>
+          <input id="fbUrl" placeholder="https://xxx-default-rtdb.firebaseio.com" autocomplete="off">
+        </label>
+        <div class="fb-actions">
+          <button class="ghost-btn" id="fbTest">연결 테스트</button>
+          <span class="fb-result" id="fbResult"></span>
+        </div>
+        <details class="rules">
+          <summary>Firebase 규칙 예시 보기</summary>
+          <pre>{
+  "rules": {
+    "pickleOffice": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}</pre>
+          <p>테스트용 공개 규칙이에요. 실제로 쓰실 땐 규칙을 좁혀두세요.</p>
+        </details>
+      </div>
+
+      <div class="room-box">
+        <label class="field"><span>방 이름 (room)</span>
+          <input id="roomInput" maxlength="40" placeholder="dayun-office" autocomplete="off">
+        </label>
+        <label class="field"><span>초대 링크</span>
+          <div class="copy-row">
+            <input id="inviteUrl" readonly>
+            <button class="ghost-btn" id="copyInvite2">복사</button>
+          </div>
+        </label>
+        <p class="fine">같은 방 이름 + 같은 링크로 들어오면 다른 기기·다른 피클과 실시간으로 이어져요.</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="ghost-btn" data-close="dbModal">닫기</button>
+      <button class="primary-btn" id="dbApply">적용하고 다시 연결</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
