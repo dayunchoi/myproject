@@ -165,10 +165,13 @@ input,select{outline:none}
 .pill b{color:#e8ecf5;font-size:11px}
 
 /* ───────────── 오피스 맵 ───────────── */
-.map-wrap{display:flex;justify-content:center}
+.map-wrap{
+  display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  align-items:start;gap:22px;justify-items:center;
+}
 .map-shell{
   width:100%;
-  max-width:min(1180px, calc((100dvh - 186px) * 1.2495));
+  max-width:min(1180px, calc((100dvh - 200px) * 1.2495));
   aspect-ratio:1402 / 1122;
   position:relative;border-radius:22px;overflow:hidden;
   border:1px solid #2b3548;
@@ -302,6 +305,43 @@ input,select{outline:none}
 .agent.offline{opacity:.45;filter:grayscale(.5)}
 @keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-3px)}}
 @keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+
+/* 사이드 HUD */
+.map-hud{
+  display:none;width:100%;max-width:246px;padding:14px 14px 12px;border-radius:16px;
+  background:linear-gradient(180deg,rgba(19,26,40,.86),rgba(13,18,28,.86));
+  border:1px solid var(--line);box-shadow:0 24px 60px -34px #000;
+  backdrop-filter:blur(8px);
+}
+.map-hud h4{display:flex;align-items:center;gap:6px;margin:0 0 11px;font-size:10.5px;font-weight:800;color:#cfd8e8;letter-spacing:-.1px}
+.map-hud h4 em{font-style:normal;margin-left:auto;font-size:9px;color:#7f8ba3;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:999px;padding:1px 6px}
+.map-hud ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.map-hud li{display:flex;flex-direction:column;gap:3px;min-width:0}
+.hud-agent{display:flex;align-items:center;gap:7px}
+.hud-agent i{
+  width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-style:normal;font-size:8.5px;font-weight:900;color:#211936;background:var(--c);
+  box-shadow:0 3px 8px -3px #000, inset 0 1px 1px rgba(255,255,255,.5);
+}
+.hud-agent .hn{font-size:10.5px;font-weight:700;color:#e2e8f4}
+.hud-agent .hs{font-size:9px;color:#7f8ba3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:auto;max-width:110px;text-align:right}
+.hud-agent .dot{width:5px;height:5px;border-radius:50%;background:var(--green);flex:none;box-shadow:0 0 6px rgba(52,211,153,.8)}
+.hud-agent .demo{font-size:7.5px;color:#7f8ba3;border:1px solid var(--line);border-radius:4px;padding:0 3px}
+.hud-task{display:flex;align-items:flex-start;gap:6px}
+.hud-task .bar{width:2px;border-radius:2px;background:var(--accent);align-self:stretch;flex:none;opacity:.7}
+.hud-task b{font-size:10px;font-weight:600;color:#dbe2ef;line-height:1.45;letter-spacing:-.1px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hud-task .hwho{font-size:8.5px;color:#77839b;margin-top:2px;display:block}
+.hud-link{
+  width:100%;margin-top:12px;height:28px;border-radius:8px;
+  background:rgba(196,181,253,.08);border:1px dashed rgba(196,181,253,.3);
+  color:#c9bdf7;font-size:9.5px;font-weight:700;
+}
+.hud-link:hover{background:rgba(196,181,253,.16)}
+.hud-agenda{margin-top:13px;padding-top:11px;border-top:1px solid var(--line-soft)}
+.hud-agenda span{font-size:8px;font-weight:800;letter-spacing:.4px;color:#8b7fc0}
+.hud-agenda p{margin:4px 0 0;font-size:10px;line-height:1.5;color:#c7d0e1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.map-hud .empty{font-size:9.5px;color:#5b6680;padding:4px 0}
+@media (min-width:1480px){.map-hud{display:block}}
 
 .map-footer{
   display:flex;align-items:center;justify-content:space-between;gap:14px;
@@ -616,6 +656,7 @@ body.modal-open{overflow:hidden}
   .main{padding:12px 12px 20px}
   .room-title h1{font-size:17px}
   .room-title p{display:none}
+  .map-wrap{display:block}
   .map-shell{max-width:100%}
   .kanban{grid-template-columns:1fr}
   .mode-cards{grid-template-columns:1fr}
@@ -627,8 +668,17 @@ body.modal-open{overflow:hidden}
   .nav-right{order:2}
   .tabs{order:3;width:100%;justify-content:space-between;margin:0}
   .tabs button{flex:1;justify-content:center;padding:0 6px;font-size:11px}
-  .agent .bubble{max-width:120px;font-size:8.5px}
-  .agent .tag{font-size:8px}
+  .agent{width:48px;height:64px}
+  .agent .body{width:30px;height:29px;bottom:9px}
+  .agent .stem{bottom:36px;width:6px;height:5px}
+  .agent .eyes{gap:6px;padding-top:3px}
+  .agent .eyes i{width:4px;height:6px}
+  .agent .shadow{width:28px;height:7px;bottom:4px}
+  .agent .tag{font-size:7.5px;bottom:-5px;padding:1px 5px 1px 2px}
+  .agent .tag b{width:11px;height:11px;font-size:7px}
+  .agent .bubble{max-width:96px;font-size:8px;bottom:44px;padding:4px 7px}
+  .agent:not(.me) .bubble{display:none}
+  .map-live{display:none}
   .map-shell{border-radius:16px}
   .map-footer{font-size:9.5px}
   .room-actions .ghost-btn:first-child{display:none}

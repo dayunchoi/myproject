@@ -388,10 +388,22 @@ function startSync() {
 /* ────────── 렌더: 캐릭터 ────────── */
 const agentEls = new Map();
 
-function bubbleFor(a) {
-  const doing = Object.values(state.tasks).find((t) => t.owner === a.id && t.status === 'doing' && !t.deleted);
+const short = (s, n = 14) => {
+  s = String(s || '');
+  return s.length > n ? s.slice(0, n) + '…' : s;
+};
+function doingTaskOf(a) {
+  return Object.values(state.tasks)
+    .filter((t) => t.owner === a.id && t.status === 'doing' && !t.deleted)
+    .sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0))[0];
+}
+function bubbleFull(a) {
+  const doing = doingTaskOf(a);
   if (doing) return '⚡ ' + doing.title;
   return a.status || '';
+}
+function bubbleFor(a) {
+  return short(bubbleFull(a), 14);
 }
 
 function renderAgents() {
@@ -430,12 +442,13 @@ function renderAgents() {
     const bt = el.querySelector('.bt');
     if (bt.textContent !== text) bt.textContent = text;
     bubble.classList.toggle('show', !!text && isOnline(a));
+    bubble.title = bubbleFull(a);
     const b = el.querySelector('.tag b');
     if (b.textContent !== (a.initial || 'ㅇ')) b.textContent = a.initial || 'ㅇ';
     const nm = el.querySelector('.nm');
     if (nm.textContent !== a.name) nm.textContent = a.name;
     el.querySelector('.demo-tag').style.display = isDemo(a) ? '' : 'none';
-    el.title = `${a.name}${isDemo(a) ? ' (예시 요원)' : ''} · ${text || '대기 중'}`;
+    el.title = `${a.name}${isDemo(a) ? ' (예시 요원)' : ''} · ${bubbleFull(a) || '대기 중'}`;
   }
   for (const [id, el] of agentEls) {
     if (!alive.has(id)) { el.remove(); agentEls.delete(id); }
@@ -444,11 +457,13 @@ function renderAgents() {
 
 function renderFacepile() {
   const box = $('#facepile');
-  const online = onlineAgents().sort((a, b) => (a.id === meId ? -1 : b.id === meId ? 1 : 0));
+  const online = realOnline().sort((a, b) => (a.id === meId ? -1 : b.id === meId ? 1 : 0));
+  const demoCount = onlineAgents().filter(isDemo).length;
   box.innerHTML = online.slice(0, 4)
     .map((a) => `<span class="fp" style="--c:${esc(a.color)}" title="${esc(a.name)}">${esc(a.initial)}</span>`)
     .join('') + (online.length > 4 ? `<span class="fp more">+${online.length - 4}</span>` : '');
   $('#onlineCount').textContent = String(realOnline().length || 1);
+  $('#onlineBadge').title = demoCount ? `접속 중인 피클 ${realOnline().length}명 · 예시 요원 ${demoCount}명` : '접속 중인 피클';
   $('#meAvatar').textContent = state.agents[meId]?.initial || 'ㅇ';
   $('#meAvatar').style.setProperty('--accent', state.agents[meId]?.color || '#c4b5fd');
   $('#chatAvatar').textContent = state.agents[meId]?.initial || 'ㅇ';
@@ -546,6 +561,38 @@ function renderAll() {
   renderFacepile();
   renderMeeting();
   renderKanban();
+  renderHud();
+}
+
+function renderHud() {
+  const list = $('#hudAgents');
+  if (!list) return;
+  const agents = Object.values(state.agents)
+    .filter(isOnline)
+    .sort((a, b) => (a.id === meId ? -1 : b.id === meId ? 1 : 0));
+  $('#hudAgentCount').textContent = String(agents.length);
+  list.innerHTML = agents.map((a) => `
+    <li><div class="hud-agent">
+      <i style="--c:${esc(a.color)}">${esc(a.initial)}</i>
+      <span class="hn">${esc(a.name)}</span>
+      ${isDemo(a) ? '<span class="demo">예시</span>' : '<span class="dot"></span>'}
+      <span class="hs">${esc(short(bubbleFull(a), 12) || '대기 중')}</span>
+    </div></li>`).join('');
+
+  const doing = Object.values(state.tasks)
+    .filter((t) => t.status === 'doing' && !t.deleted)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .slice(0, 4);
+  $('#hudDoingCount').textContent = String(doing.length);
+  $('#hudTasks').innerHTML = doing.length
+    ? doing.map((t) => {
+        const o = ownerOf(t.owner);
+        return `<li><div class="hud-task"><span class="bar" style="background:${esc(o?.color || '#94a3b8')}"></span>
+          <div><b>${esc(t.title)}</b><span class="hwho">${esc(o?.name || '미지정')}</span></div></div></li>`;
+      }).join('')
+    : '<li class="empty">진행 중인 작업이 없어요</li>';
+  const agenda = $('#hudAgenda');
+  if (agenda) agenda.textContent = state.agenda.text || '—';
 }
 let savedTimer = null;
 function renderAgendaSaved(on) {
@@ -577,7 +624,7 @@ function moveMe(x, y) {
 
 function enterZone(zone) {
   const spot = {
-    meeting: [21, 40],
+    meeting: [28.5, 42],
     work: [57, 26.5],
     lounge: [60, 70],
   }[zone];
@@ -699,6 +746,7 @@ function wire() {
 
   $('#mySeatBtn').addEventListener('click', () => { moveMe(44, 26.5); toast('📍 내 자리로 돌아왔어요'); });
   $('#copyLinkBtn').addEventListener('click', copyInvite);
+  $('#hudInvite')?.addEventListener('click', copyInvite);
 
   $('#chatForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -707,7 +755,7 @@ function wire() {
     if (!text) return;
     const a = state.agents[meId];
     emit('chat', { msg: { id: uid(), agentId: meId, name: a.name, initial: a.initial, color: a.color, text, ts: Date.now() } });
-    if (a.room !== 'meeting') { a.room = 'meeting'; a.x = 21; a.y = 40; a.updatedAt = Date.now(); publishMe(); }
+    if (a.room !== 'meeting') { a.room = 'meeting'; a.x = 28.5; a.y = 42; a.updatedAt = Date.now(); publishMe(); }
     input.value = '';
     $('#chatList').scrollTop = $('#chatList').scrollHeight;
   });
