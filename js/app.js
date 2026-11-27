@@ -3,7 +3,7 @@
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=1';
+import { NostrBus } from './nostr.js?v=2';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -41,16 +41,17 @@ function emptyState() {
   return { agents: {}, tasks: {}, todos: {}, messages: [], agenda: { text: '', updatedAt: 0 } };
 }
 
+const DEMO_AGENTS = [
+  { id: 'demo-mochi', name: '모찌', initial: 'ㅁ', color: '#93c5fd', status: '회의 자료 정리 중', x: 57, y: 26.5, room: 'work' },
+  { id: 'demo-tofu', name: '두부', initial: 'ㄷ', color: '#86efac', status: '문서 검토 중', x: 69, y: 26.5, room: 'work' },
+  { id: 'demo-sogeum', name: '소금', initial: 'ㅅ', color: '#fcd34d', status: '대회의실에서 대기 중', x: 30.5, y: 48, room: 'meeting' },
+  { id: 'demo-latte', name: '라떼', initial: 'ㄹ', color: '#f9a8d4', status: '라운지에서 충전 중', x: 67, y: 80, room: 'lounge' },
+];
+
 /* ────────── 초기 데이터 ────────── */
 function seed() {
   const t = Date.now();
-  const demo = [
-    { id: 'demo-mochi', name: '모찌', initial: 'ㅁ', color: '#93c5fd', status: '회의 자료 정리 중', x: 57, y: 26.5, room: 'work' },
-    { id: 'demo-tofu', name: '두부', initial: 'ㄷ', color: '#86efac', status: '문서 검토 중', x: 69, y: 26.5, room: 'work' },
-    { id: 'demo-sogeum', name: '소금', initial: 'ㅅ', color: '#fcd34d', status: '대회의실에서 대기 중', x: 28.5, y: 42, room: 'meeting' },
-    { id: 'demo-latte', name: '라떼', initial: 'ㄹ', color: '#f9a8d4', status: '라운지에서 충전 중', x: 69, y: 79, room: 'lounge' },
-  ];
-  demo.forEach((a, i) => {
+  DEMO_AGENTS.forEach((a, i) => {
     state.agents[a.id] = { ...a, demo: true, updatedAt: t - 60000 + i, _seen: t };
   });
 
@@ -116,6 +117,18 @@ function loadState() {
     state = emptyState();
     seed();
   }
+  // 예시 요원은 항상 정해진 자리에 (로컬 전용)
+  DEMO_AGENTS.forEach((d) => {
+    const cur = state.agents[d.id];
+    if (cur) {
+      cur.x = d.x; cur.y = d.y; cur.room = d.room;
+      cur.name = cur.name || d.name;
+      cur.color = cur.color || d.color;
+      cur.initial = cur.initial || d.initial;
+      cur.demo = true;
+    }
+  });
+
   ensureMe();
   // 저장된 내 캐릭터는 항상 내 프로필을 따른다
   const savedProfile = (() => { try { return JSON.parse(localStorage.getItem('po.profile') || '{}'); } catch (_) { return {}; } })();
