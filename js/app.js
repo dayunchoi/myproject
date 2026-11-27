@@ -890,8 +890,14 @@ function renderAgents() {
   if (!layer) return;
   const alive = new Set();
   const staleBefore = Date.now() - 10 * 60 * 1000;
+  const myName = (state.agents[meId] && state.agents[meId].name) || '';
   for (const [id, a] of Object.entries(state.agents)) {
-    if (id !== meId && (a._seen || 0) < staleBefore) { delete state.agents[id]; saveState(); }
+    if (id === meId) continue;
+    // 10분 지난 기록, 그리고 같은 이름으로 남은 예전 내 기록은 지도에서 정리합니다.
+    if ((a._seen || 0) < staleBefore || (myName && a.name === myName)) {
+      delete state.agents[id];
+      saveState();
+    }
   }
   const list = Object.values(state.agents)
     .filter((a) => a.id === meId || isOnline(a))
