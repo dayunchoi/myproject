@@ -490,16 +490,18 @@ function renderAgents() {
     .filter((a) => a.id === meId || isOnline(a))
     .sort((a, b) => (a.id === meId ? 1 : b.id === meId ? -1 : 0));
 
-  // 같은 자리에 동시에 들어온 피클끼리 겹치지 않게 화면 위치만 살짝 비켜 놓기
+  // 같은 자리에 동시에 들어온 피클끼리 겹치지 않게 화면 위치만 비켜 놓기 (말풍선까지 겹치지 않게 대각선으로)
   const spotting = new Map();
   const placed = [];
   for (const a of list) {
     let x = a.x ?? 44;
     let y = a.y ?? 32;
     let guard = 0;
-    while (placed.some((p) => Math.abs(p.x - x) < 6 && Math.abs(p.y - y) < 8) && guard < 14) {
-      x += 6;
-      if (x > 92) { x = 10 + (guard % 4) * 7; y += 7; }
+    while (placed.some((p) => Math.abs(p.x - x) < 9 && Math.abs(p.y - y) < 10) && guard < 14) {
+      x += 9;
+      y += guard % 2 === 0 ? 10 : -12;
+      if (x > 88) { x = 12 + (guard % 3) * 8; y += 12; }
+      y = Math.max(8, Math.min(92, y));
       guard += 1;
     }
     placed.push({ x, y });
@@ -703,7 +705,7 @@ function cardHTML(t) {
       <div class="cf">
         <select class="opick" data-owner title="담당 피클 변경">${ownerOptionsHTML(t.owner)}</select>
         <span class="sp"></span>
-        ${mine ? '' : '<button class="mv take" data-take="1" title="내가 맡기">내가 맡기</button>'}
+        ${mine || t.status === 'done' ? '' : '<button class="mv take" data-take="1" title="내가 맡기">내가 맡기</button>'}
         ${moves.map(([s, icon, label]) => `<button class="mv" data-move="${s}" title="${label}">${icon}</button>`).join('')}
         <button class="mv del" data-del="1" title="삭제">🗑</button>
       </div>
