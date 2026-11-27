@@ -136,7 +136,7 @@ const isOnline = (a) => {
   if (!a) return false;
   if (a.id === meId) return true;
   if (isDemo(a)) return true;
-  return Date.now() - (a._seen || 0) < 90000;
+  return Date.now() - (a._seen || 0) < 120000;
 };
 const onlineAgents = () => Object.values(state.agents).filter(isOnline);
 const realOnline = () => onlineAgents().filter((a) => !isDemo(a));
@@ -422,6 +422,8 @@ function renderAgents() {
   }
   const list = Object.values(state.agents).sort((a, b) => (a.id === meId ? 1 : b.id === meId ? -1 : 0));
   for (const a of list) {
+    // 지금 이 사무실에 있는 요원만 보여줌 (오래된 접속 기록은 숨김)
+    if (!isOnline(a) && a.id !== meId) continue;
     alive.add(a.id);
     let el = agentEls.get(a.id);
     if (!el) {
