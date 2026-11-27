@@ -21,6 +21,9 @@ const ZONES = {
 };
 const STATUS_LABEL = { todo: '대기', doing: '진행 중', done: '완료' };
 const LEGACY_ID = /^(demo-|seed-|fake-)/;
+/* 최근 참여 피클 기억: 저장은 3일, 담당 목록의 '최근 참여' 노출은 3시간 */
+const PEER_REMEMBER_MS = 3 * 24 * 60 * 60 * 1000;
+const PEER_RECENT_MS = 3 * 60 * 60 * 1000;
 
 /* ────────── 방 / 나 ────────── */
 const params = new URLSearchParams(location.search);
@@ -67,7 +70,10 @@ function rememberPeers() {
       lastSeen: a._seen || Date.now(),
     });
   }
-  knownPeers = [...map.values()].sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0)).slice(0, 12);
+  knownPeers = [...map.values()]
+    .filter((p) => (p.lastSeen || 0) > Date.now() - PEER_REMEMBER_MS)
+    .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
+    .slice(0, 12);
   try { localStorage.setItem(peersKey, JSON.stringify(knownPeers)); } catch (_) {}
 }
 
@@ -580,7 +586,7 @@ function assignableList() {
     .forEach((a) => rows.push({ id: a.id, label: `${a.name} · 접속 중`, state: 'on' }));
   const listed = new Set(rows.map((r) => r.id));
   knownPeers
-    .filter((p) => !listed.has(p.id) && p.id !== meId)
+    .filter((p) => !listed.has(p.id) && p.id !== meId && (p.lastSeen || 0) > Date.now() - PEER_RECENT_MS)
     .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
     .slice(0, 6)
     .forEach((p) => rows.push({ id: p.id, label: `${p.name || '피클'} · 최근 참여`, state: 'off' }));
