@@ -267,6 +267,9 @@ ul { margin: 0; padding: 0; list-style: none; }
 .x-btn:hover { background: var(--card-2); color: var(--ink); }
 
 /* ══════════ 오피스 맵 ══════════ */
+@media (min-width: 861px) {
+  #view-map { max-width: 760px; margin: 0 auto; }
+}
 .big-action {
   display: flex;
   align-items: center;
@@ -401,8 +404,8 @@ ul { margin: 0; padding: 0; list-style: none; }
 }
 .agent.me .tag { background: #fffaf5; box-shadow: 0 0 0 2px var(--rose), 0 6px 14px rgba(70, 48, 30, .18); }
 .agent.me .body { box-shadow: inset 0 -3px 6px rgba(90, 60, 40, .16), 0 0 0 2px rgba(255, 255, 255, .7), 0 4px 8px rgba(80, 55, 35, .2); }
-.agent.me::after {
-  content: "나";
+.agent .me-mark {
+  display: none;
   position: absolute;
   right: -8px; top: -6px;
   background: var(--rose);
@@ -412,6 +415,7 @@ ul { margin: 0; padding: 0; list-style: none; }
   border-radius: 999px;
   padding: 1px 5px;
 }
+.agent.me .me-mark { display: block; }
 .agent.offline { opacity: .5; filter: grayscale(.4); }
 .agent .bubble {
   display: none;
@@ -644,7 +648,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .sum-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0 14px; }
 .sum-box { border-radius: 20px; padding: 18px 8px 15px; text-align: center; }
 .sum-box b { display: block; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
-.sum-box b::after { content: "개"; font-size: 12px; font-weight: 700; margin-left: 3px; letter-spacing: 0; }
+.sum-box b i { font-style: normal; font-size: 12px; font-weight: 700; margin-left: 3px; letter-spacing: 0; }
 .sum-box span { display: block; margin-top: 7px; font-size: 11.5px; font-weight: 700; color: var(--ink-2); opacity: .78; }
 .sum-box.rose { background: #fcefef; color: #c4677a; }
 .sum-box.green { background: #eef6ef; color: #5b8f6d; }

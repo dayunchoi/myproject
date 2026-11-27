@@ -55,8 +55,8 @@ const meId = (() => {
   return id;
 })();
 
-const stateKey = 'po.state.4.' + room;
-const peersKey = 'po.peers.2.' + room;
+const stateKey = 'po.state.5.' + room;
+const peersKey = 'po.peers.3.' + room;
 const seen = new Set();
 let state = emptyState();
 let mode = localStorage.getItem('po.mode') === 'firebase' ? 'firebase' : 'nostr';
@@ -596,6 +596,7 @@ function renderAgents() {
       el.className = 'agent';
       el.dataset.agent = a.id;
       el.innerHTML = `
+        <span class="me-mark" aria-hidden="true">나</span>
         <div class="tag"><i></i><span></span></div>
         <div class="body"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span></div>`;
       el.addEventListener('click', (e) => {
