@@ -3,7 +3,7 @@
    실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
    + BroadcastChannel + localStorage
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=3';
+import { NostrBus } from './nostr.js?v=4';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -503,20 +503,26 @@ function renderMeeting() {
   const participants = inMeeting();
   $('#meetingCount').textContent = String(participants.length);
   $('#partCount').textContent = `${participants.length}명`;
-  $('#participantList').innerHTML = participants.length
-    ? participants.map((a) => `<span class="chip ${a.id === meId ? 'me' : ''}" style="--c:${esc(a.color)}"><i>${esc(a.initial)}</i>${esc(a.name)}${isDemo(a) ? '<span class="away">예시</span>' : ''}</span>`).join('')
-    : '<span class="chip"><i style="--c:#475569">·</i>아직 아무도 없어요</span>';
+  const pSig = participants.map((a) => a.id + a.name + a.initial).join('|');
+  const pBox = $('#participantList');
+  if (pBox.dataset.sig !== pSig) {
+    pBox.dataset.sig = pSig;
+    pBox.innerHTML = participants.length
+      ? participants.map((a) => `<span class="chip ${a.id === meId ? 'me' : ''}" style="--c:${esc(a.color)}"><i>${esc(a.initial)}</i>${esc(a.name)}${isDemo(a) ? '<span class="away">예시</span>' : ''}</span>`).join('')
+      : '<span class="chip"><i style="--c:#475569">·</i>아직 아무도 없어요</span>';
+  }
 
   const agendaInput = $('#agendaInput');
   if (document.activeElement !== agendaInput) agendaInput.value = state.agenda.text || '';
 
   const list = $('#chatList');
+  const inner = $('#chatInner');
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 90;
   const msgs = state.messages.slice(-200);
-  if (!msgs.length) {
-    list.innerHTML = '<div class="chat-empty"><span class="big">💬</span>첫 메시지를 남겨보세요</div>';
-  } else if (msgs.length !== lastChatCount || list.dataset.sig !== msgs[msgs.length - 1].id) {
-    list.innerHTML = msgs.map((m) => `
+  $('#chatEmpty').hidden = msgs.length > 0;
+  inner.hidden = msgs.length === 0;
+  if (msgs.length && inner.dataset.sig !== msgs[msgs.length - 1].id) {
+    inner.innerHTML = msgs.map((m) => `
       <div class="msg ${m.agentId === meId ? 'mine' : ''}">
         <div class="mav" style="--c:${esc(m.color || '#c4b5fd')}">${esc(m.initial || 'ㅇ')}</div>
         <div class="mb">
@@ -524,26 +530,34 @@ function renderMeeting() {
           <div class="mx">${esc(m.text)}</div>
         </div>
       </div>`).join('');
-    list.dataset.sig = msgs[msgs.length - 1]?.id || '';
+    inner.dataset.sig = msgs[msgs.length - 1].id;
+    if (nearBottom) list.scrollTop = list.scrollHeight;
   }
-  lastChatCount = msgs.length;
-  if (nearBottom) list.scrollTop = list.scrollHeight;
 
   const todos = Object.values(state.todos).filter((t) => !t.deleted).sort((a, b) => (a.done === b.done ? a.updatedAt - b.updatedAt : a.done ? 1 : -1));
   const done = todos.filter((t) => t.done).length;
   $('#todoProgress').style.width = todos.length ? `${(done / todos.length) * 100}%` : '0%';
   $('#todoProgressText').textContent = `${done} / ${todos.length} 완료`;
-  $('#todoList').innerHTML = todos.map((t) => `
-    <li class="${t.done ? 'done' : ''}" data-todo="${esc(t.id)}">
-      <button class="cb" data-act="toggle">✓</button>
-      <span class="tt">${esc(t.text)}</span>
-      <button class="del" data-act="del" title="삭제">✕</button>
-    </li>`).join('') || '<li style="color:#5b6680;font-size:10.5px;padding:8px 6px">결정사항을 추가해 보세요</li>';
+  const tSig = todos.map((t) => `${t.id}:${t.done}:${t.text}`).join('|');
+  const tBox = $('#todoList');
+  if (tBox.dataset.sig !== tSig) {
+    tBox.dataset.sig = tSig;
+    tBox.innerHTML = todos.map((t) => `
+      <li class="${t.done ? 'done' : ''}" data-todo="${esc(t.id)}">
+        <button class="cb" data-act="toggle">✓</button>
+        <span class="tt">${esc(t.text)}</span>
+        <button class="del" data-act="del" title="삭제">✕</button>
+      </li>`).join('') || '<li style="color:#5b6680;font-size:10.5px;padding:8px 6px">결정사항을 추가해 보세요</li>';
+  }
 }
 
 /* ────────── 렌더: 작업실 ────────── */
 function renderKanban() {
   const tasks = Object.values(state.tasks).filter((t) => !t.deleted);
+  const sig = tasks.map((t) => `${t.id}:${t.status}:${t.updatedAt}:${t.title}:${t.note || ''}:${t.owner}:${t.priority}`).join('|');
+  const board = $('#kanban');
+  if (board.dataset.sig === sig) return;
+  board.dataset.sig = sig;
   for (const status of ['todo', 'doing', 'done']) {
     const items = tasks.filter((t) => t.status === status).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     const box = $('#col-' + status);
