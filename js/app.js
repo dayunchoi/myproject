@@ -47,8 +47,8 @@ function seed() {
   const demo = [
     { id: 'demo-mochi', name: '모찌', initial: 'ㅁ', color: '#93c5fd', status: '회의 자료 정리 중', x: 57, y: 26.5, room: 'work' },
     { id: 'demo-tofu', name: '두부', initial: 'ㄷ', color: '#86efac', status: '문서 검토 중', x: 69, y: 26.5, room: 'work' },
-    { id: 'demo-sogeum', name: '소금', initial: 'ㅅ', color: '#fcd34d', status: '대회의실에서 대기 중', x: 21, y: 40, room: 'meeting' },
-    { id: 'demo-latte', name: '라떼', initial: 'ㄹ', color: '#f9a8d4', status: '라운지에서 충전 중', x: 60, y: 70, room: 'lounge' },
+    { id: 'demo-sogeum', name: '소금', initial: 'ㅅ', color: '#fcd34d', status: '대회의실에서 대기 중', x: 28.5, y: 42, room: 'meeting' },
+    { id: 'demo-latte', name: '라떼', initial: 'ㄹ', color: '#f9a8d4', status: '라운지에서 충전 중', x: 69, y: 79, room: 'lounge' },
   ];
   demo.forEach((a, i) => {
     state.agents[a.id] = { ...a, demo: true, updatedAt: t - 60000 + i, _seen: t };
@@ -164,21 +164,24 @@ function scheduleRender() {
   requestAnimationFrame(() => { renderQueued = false; renderAll(); });
 }
 
-function applyOp(op, remote = false) {
+function applyOp(op, remote = false, createdAtSec = 0) {
   if (!op || !op.id || seen.has(op.id)) return false;
   seen.add(op.id);
   if (seen.size > 6000) seen.clear();
   const now = Date.now();
+  // 릴레이에서 과거 이력을 받아올 때 오래된 요원이 '접속 중'으로 보이지 않도록
+  const seenTs = remote && createdAtSec ? Math.min(createdAtSec * 1000, now) : now;
   let changed = false;
 
   if (op.type === 'agent' && op.agent) {
     const a = op.agent;
     const cur = state.agents[a.id];
     if (!cur || (a.updatedAt || 0) >= (cur.updatedAt || 0)) {
-      state.agents[a.id] = { ...(cur || {}), ...a, _seen: now };
+      const prevSeen = cur?._seen || 0;
+      state.agents[a.id] = { ...(cur || {}), ...a, _seen: Math.max(prevSeen, seenTs) };
       changed = true;
     } else if (remote) {
-      cur._seen = now;
+      cur._seen = Math.max(cur._seen || 0, seenTs);
     }
   } else if (op.type === 'agenda' && op.agenda) {
     if ((op.agenda.updatedAt || 0) >= (state.agenda.updatedAt || 0)) {
@@ -269,7 +272,7 @@ function startNostr() {
   bus = new NostrBus({
     relays: RELAYS,
     room,
-    onEvent: (op) => applyOp(op, true),
+    onEvent: (op, ev) => applyOp(op, true, ev?.created_at),
     onStatus: ({ ready, total, connecting }) => {
       if (ready > 0) setConn('ok', '실시간 연결', `Nostr ${ready}/${total}`);
       else if (connecting > 0) setConn('warn', '연결 중…', `Nostr 0/${total}`);
@@ -409,6 +412,14 @@ function bubbleFor(a) {
 function renderAgents() {
   const layer = $('#agentLayer');
   const alive = new Set();
+  // 10분 넘게 소식 없는 요원은 정리 (예시 요원·내 피클 제외)
+  const staleBefore = Date.now() - 10 * 60 * 1000;
+  for (const [id, a] of Object.entries(state.agents)) {
+    if (id !== meId && !isDemo(a) && (a._seen || 0) < staleBefore) {
+      delete state.agents[id];
+      saveState();
+    }
+  }
   const list = Object.values(state.agents).sort((a, b) => (a.id === meId ? 1 : b.id === meId ? -1 : 0));
   for (const a of list) {
     alive.add(a.id);
