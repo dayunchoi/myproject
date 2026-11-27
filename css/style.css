@@ -683,16 +683,17 @@ body.modal-open{overflow:hidden}
   .zone-work .zone-label{left:auto;right:8px}
   .tabs{order:3;width:100%;justify-content:space-between;margin:0}
   .tabs button{flex:1;justify-content:center;padding:0 6px;font-size:11px}
-  .agent{width:48px;height:64px}
-  .agent .body{width:30px;height:29px;bottom:9px}
-  .agent .stem{bottom:36px;width:6px;height:5px}
-  .agent .eyes{gap:6px;padding-top:3px}
-  .agent .eyes i{width:4px;height:6px}
-  .agent .shadow{width:28px;height:7px;bottom:4px}
-  .agent .tag{font-size:7.5px;bottom:-5px;padding:1px 5px 1px 2px}
-  .agent .tag b{width:11px;height:11px;font-size:7px}
-  .agent .bubble{max-width:96px;font-size:8px;bottom:44px;padding:4px 7px}
-  .agent .bubble{display:none}
+  .agent{width:40px;height:52px}
+  .agent .body{width:24px;height:23px;bottom:7px}
+  .agent .stem{bottom:29px;width:5px;height:4px}
+  .agent .eyes{gap:5px;padding-top:2px}
+  .agent .eyes i{width:3.5px;height:5px}
+  .agent .mouth{bottom:6px;width:5px;height:2px}
+  .agent .shadow{width:22px;height:6px;bottom:3px}
+  .agent .tag{font-size:6.5px;bottom:-4px;padding:1px 4px 1px 2px;gap:3px}
+  .agent .tag b{width:9px;height:9px;font-size:6px}
+  .agent .bubble{max-width:92px;font-size:7.5px;bottom:36px;padding:3px 6px}
+  .agent:not(.me) .bubble{display:none}
   .map-live{display:none}
   .map-shell{border-radius:16px}
   .map-footer{font-size:9.5px}
