@@ -682,6 +682,15 @@ function switchTab(tab) {
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + tab));
   requestAnimationFrame(moveGlider);
   if (tab === 'meeting') $('#chatList').scrollTop = $('#chatList').scrollHeight;
+  // 방으로 들어가면 내 피클도 그 공간으로 이동
+  const a = state.agents[meId];
+  if (a && (tab === 'meeting' || tab === 'work') && a.room !== tab) {
+    const [x, y] = tab === 'meeting' ? [28.5, 42] : [57, 26.5];
+    a.x = x; a.y = y; a.room = tab; a.updatedAt = Date.now();
+    renderAgents();
+    saveState();
+    publishMe();
+  }
 }
 function moveGlider() {
   const active = $('#tabs button.active');
