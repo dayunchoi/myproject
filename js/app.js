@@ -1,10 +1,11 @@
 /* ═══════════════════════════════════════════════════════════
-   와플 & 피클 합동 비서실 — v3 (7 tabs · clay office)
-   실제 접속한 피클끼리 일을 나누는 협업 사무실.
-   실시간 동기화: Nostr 공용 릴레이(기본) / Firebase RTDB(선택)
-   + BroadcastChannel + localStorage
+   다윤 비서실 — v4 (크림 베이지 · 파트 배지 · AI 단톡방 연동)
+   · 실시간 동기화(피클끼리): Nostr 공용 릴레이 / Firebase / BroadcastChannel
+   · AI 단톡방(와플·Claude·ChatGPT·Gemini): Cloudflare Worker + D1
+   · 비밀 키는 이 브라우저(localStorage)에만 저장합니다.
    ═══════════════════════════════════════════════════════════ */
-import { NostrBus } from './nostr.js?v=12';
+import { NostrBus } from './nostr.js?v=13';
+import { AiRoom, loadAiConfig, saveAiConfig, clearAiConfig, AI_DEFAULT_URL, AI_DEFAULT_ROOM } from './airoom.js?v=1';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -27,7 +28,25 @@ const PEER_REMEMBER_MS = 3 * 24 * 60 * 60 * 1000;
 const PEER_RECENT_MS = 3 * 60 * 60 * 1000;
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 
-/* 기본 루틴 — 다윤 님의 실제 scheduled-actions 기반 (예시 요원 아님) */
+/* ────────── 파트 정의 (다윤 님 실제 생활·업무 단위) ────────── */
+const PARTS = {
+  command: { name: '지휘실', emoji: '🎯', tab: 'work', desc: '지시와 배분을 총괄하는 자리' },
+  work: { name: '작업실', emoji: '📋', tab: 'work', desc: '자동 루틴과 맡긴 일이 도는 곳' },
+  meeting: { name: '대회의실', emoji: '🏛️', tab: 'meeting', desc: 'AI 팀과 안건을 나누는 방' },
+  trip: { name: '여행/예약', emoji: '✈️', tab: 'routine', desc: '항공·숙소·예약 오픈을 챙겨요' },
+  money: { name: '가계부/쇼핑', emoji: '💳', tab: 'routine', desc: '카드 내역·구독·포인트 정리' },
+  routine: { name: '일정/루틴', emoji: '🗓️', tab: 'routine', desc: '하루 루틴과 알림' },
+  lounge: { name: '라운지', emoji: '☕', tab: 'memo', desc: '쉬어가는 자리 · 공용 메모' },
+};
+const PART_ORDER = ['command', 'work', 'meeting', 'trip', 'money', 'routine', 'lounge'];
+const PART_KEYWORDS = {
+  trip: /여행|항공|예약|체크인|운항|숙소|팝업|나들이|제주|나고야|신혼|하나오카|치이카와/,
+  money: /가계부|카드|쇼핑|올리브영|네이버페이|구독|포인트|지출|세일|쿠폰|예산/,
+  routine: /매일|루틴|습관|알림|아침|저녁|마감|체크/,
+};
+const PART_EMOJI = { trip: '✈️', money: '💳', routine: '🗓️', meeting: '🏛️', command: '🎯', work: '📋', lounge: '☕' };
+
+/* 기본 루틴 — 다윤 님의 실제 scheduled-actions 기반 */
 const ROUTINE_SEED = [
   { id: 'rt-d1', kind: 'daily', when: '08:00', title: '매일 아침 관심 뉴스 요약', note: '경제·금융 · IT·AI · 여행·항공 · 발레·전시 키워드' },
   { id: 'rt-d2', kind: 'daily', when: '09:05', title: '12월 올영세일 오픈 및 쿠폰 확인', note: '올리브영 12월 세일 첫날 · 쿠폰 3종 확인' },
@@ -61,6 +80,7 @@ const seen = new Set();
 let state = emptyState();
 let mode = localStorage.getItem('po.mode') === 'firebase' ? 'firebase' : 'nostr';
 let fbUrl = (localStorage.getItem('po.fbUrl') || '').trim().replace(/\/+$/, '');
+let motionOn = localStorage.getItem('po.motion') !== 'off';
 
 function emptyState() {
   return {
@@ -124,7 +144,6 @@ function ensureMe() {
   return a;
 }
 
-/* 예전 예시(더미) 데이터 청소 */
 function purgeDemoData(s) {
   if (!s || typeof s !== 'object') return s;
   s.agents = s.agents && typeof s.agents === 'object' ? s.agents : {};
@@ -226,6 +245,11 @@ const doingTaskOf = (id) =>
     .sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0))[0] || null;
 const waitingCountOf = (id) =>
   Object.values(state.tasks).filter((t) => t.owner === id && t.status === 'todo' && !t.deleted).length;
+const colorForName = (name) => {
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) % 997;
+  return COLORS[h % COLORS.length];
+};
 
 function saveState() {
   try { localStorage.setItem(stateKey, JSON.stringify(state)); } catch (_) {}
@@ -233,11 +257,26 @@ function saveState() {
 
 function toast(text) {
   const box = $('#toasts');
+  if (!box) return;
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = text;
   box.appendChild(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 280); }, 2600);
+}
+
+async function copyText(text, okMessage) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(okMessage || '복사했어요');
+  } catch (_) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast(okMessage || '복사했어요'); } catch (e) { toast('복사가 안 돼요 — 길게 눌러 복사해 주세요'); }
+    ta.remove();
+  }
 }
 
 /* ────────── 작업실 탭 배지 ────────── */
@@ -382,17 +421,12 @@ function publishMeThrottled() {
   moveTimer = setTimeout(() => { moveTimer = null; publishMe(); }, 240);
 }
 
-/* ────────── 동기화 ────────── */
+/* ────────── 피클끼리 동기화 (Nostr / Firebase) ────────── */
 let bus = null;
 let bc = null;
 let fb = { es: null, timer: null, lastRev: 0, active: false };
 
 function setConn(ready, total, connecting) {
-  const pill = $('#statusPill');
-  if (pill) {
-    pill.classList.remove('warn', 'off');
-    if (!ready) pill.classList.add(connecting ? 'warn' : 'off');
-  }
   const dot = $('#syncDot');
   if (dot) dot.style.background = ready ? 'var(--green)' : connecting ? 'var(--amber)' : 'var(--muted)';
   const txt = $('#syncText');
@@ -433,7 +467,6 @@ function renderRelayList() {
     .join('');
 }
 
-/* Firebase (선택) */
 function fbPath() { return `${fbUrl}/pickleOffice/${encodeURIComponent(room)}.json`; }
 function scheduleFbPush() {
   if (mode !== 'firebase' || !fbUrl) return;
@@ -516,32 +549,310 @@ function startSync() {
   else startNostr();
 }
 
-/* ══════════ 렌더: 헤더 ══════════ */
-function statusCounts() {
-  const online = onlineAgents();
-  const total = new Set([meId, ...online.map((a) => a.id), ...knownPeers.map((p) => p.id)]).size;
-  const idle = online.filter((a) => !doingTaskOf(a.id)).length;
-  return { total, online: online.length, idle };
+/* ══════════ AI 단톡방 (Cloudflare) ══════════ */
+const ai = {
+  config: loadAiConfig(),
+  room: null,
+  myIds: new Set(),
+  busy: false,
+};
+
+function myAiName() {
+  return ai.room && ai.room.isAdmin ? '다윤' : '와플';
 }
 
-function renderHeader() {
-  const me = state.agents[meId];
-  if (me) {
-    const av = $('#meAvatar');
-    av.textContent = me.initial || 'ㅇ';
-    av.style.setProperty('--c', me.color || COLORS[0]);
-    $('#meName').textContent = me.name || '와플';
+function aiConnected() {
+  return !!(ai.room && ai.room.connected);
+}
+
+function initAiRoom() {
+  if (ai.room) { ai.room.destroy(); ai.room = null; }
+  const { url, roomId, key } = ai.config;
+  if (!key) {
+    renderAiStatus();
+    return;
   }
-  const c = statusCounts();
-  $('#statusText').textContent = `비서 ${c.total}명 · 온라인 ${c.online} · 대기 ${c.idle}`;
+  const client = new AiRoom({ url, roomId, key });
+  ai.room = client;
+  client.onStatus = () => { renderAiStatus(); renderAgentAi(); };
+  client.onUpdate = () => { renderMeeting(); renderAiMembers(); renderHero(); renderParts(); };
+  renderAiStatus();
+  client.connect()
+    .then(() => {
+      client.startPolling(5000);
+      renderAll();
+      toast('🤖 AI 단톡방에 연결했어요');
+    })
+    .catch((err) => {
+      renderAiStatus();
+      toast('AI 단톡방 연결 실패 · ' + (err.message || '키를 확인해 주세요'));
+    });
 }
 
-function renderClock() {
-  const d = new Date();
-  $('#clockText').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]}) ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+function renderAiStatus() {
+  const client = ai.room;
+  const connected = !!(client && client.connected);
+  const error = !!(client && client.status === 'error');
+  const connecting = !!(client && client.status === 'connecting');
+
+  const chip = $('#aiConnChip');
+  if (chip) {
+    chip.classList.remove('on', 'off', 'warn');
+    chip.classList.add(connected ? 'on' : error ? 'warn' : 'off');
+    const text = $('#aiConnText');
+    if (text) text.textContent = connected ? 'AI 서버 연결됨' : error ? 'AI 서버 확인 필요' : connecting ? 'AI 서버 연결 중' : 'AI 서버 미연결';
+  }
+
+  const sChip = $('#aiStatusChip');
+  if (sChip) {
+    sChip.classList.remove('on', 'off', 'warn');
+    sChip.classList.add(connected ? 'on' : error ? 'warn' : 'off');
+    const t = $('#aiStatusChipText');
+    if (t) t.textContent = connected ? '연결됨' : error ? '연결 오류' : connecting ? '연결 중…' : '미연결';
+  }
+
+  const line = $('#aiStatusLine');
+  if (line) {
+    line.textContent = `${ai.config.url.replace('https://', '')} · 방 ${ai.config.roomId.slice(0, 8)}… · ${ai.config.key ? (ai.config.key.startsWith('pk_ai_') ? 'AI 초대 키' : '방 주인 키') : '키 없음'}`;
+  }
+
+  const disc = $('#aiDisconnectBtn');
+  if (disc) disc.hidden = !ai.config.key;
+  const openApi = $('#guideOpenApi');
+  if (openApi) openApi.textContent = `${ai.config.url}/openapi.json`;
+  const serverUrl = $('#aiServerUrl');
+  if (serverUrl) serverUrl.value = ai.config.url;
+
+  const strip = $('#meetingChannel');
+  if (strip) {
+    strip.classList.toggle('on', connected);
+    const t = $('#meetingChannelText');
+    if (t) {
+      t.textContent = connected
+        ? `AI 단톡방 연결됨 · ${(client.roomName || '우리 집 AI 회의방')} · 5초마다 새 글 확인`
+        : error ? 'AI 단톡방 연결에 문제가 있어요 · 키를 다시 확인해 주세요'
+        : 'AI 단톡방에 연결하면 AI 팀과 함께 대화할 수 있어요';
+    }
+  }
 }
 
-/* ══════════ 렌더: 오피스 맵 ══════════ */
+function renderAiMembers() {
+  const box = $('#aiMemberList');
+  const countEl = $('#aiMemberCount');
+  if (!box) return;
+  const client = ai.room;
+  if (!client || !client.connected) {
+    if (countEl) countEl.textContent = '—';
+    box.innerHTML = `<p class="empty-hint">${ai.config.key ? '연결 중이거나 연결에 문제가 있어요.' : '연결하면 이 방에 들어와 있는 AI가 여기에 보여요.'}</p>`;
+    return;
+  }
+  const members = client.members || [];
+  if (countEl) countEl.textContent = `${members.length}명 · 사용 중 ${members.filter((m) => m.is_active).length}`;
+  if (!members.length) {
+    box.innerHTML = '<p class="empty-hint">아직 이 방에 등록된 AI가 없어요. 아래에서 Claude·ChatGPT·Gemini를 초대해 보세요.</p>';
+    return;
+  }
+  box.innerHTML = members.map((m) => {
+    const name = esc(m.ai_name || 'AI');
+    const initial = esc((m.ai_name || '·').slice(0, 1));
+    const when = m.created_at ? dateHM(Date.parse(m.created_at)) : '';
+    return `<div class="member-row ${m.is_active ? '' : 'off'}">
+      <span class="member-av">${initial}</span>
+      <div class="member-body">
+        <b>${name}</b>
+        <span>${m.is_active ? '사용 중' : '꺼짐'} · 초대 ${esc(when)}</span>
+      </div>
+      <span class="member-pill ${m.is_active ? '' : 'off'}">${m.is_active ? '가동' : '꺼짐'}</span>
+      ${client.isAdmin ? `<button class="member-toggle" data-toggle-key="${esc(m.id)}" data-active="${m.is_active ? '1' : '0'}">${m.is_active ? '끄기' : '켜기'}</button>` : ''}
+    </div>`;
+  }).join('');
+  const hint = $('#aiInviteHint');
+  if (hint) hint.textContent = client.isAdmin ? '방 주인 키로 연결됨 · 바로 발급할 수 있어요' : '방 주인 키를 넣으면 바로 발급돼요';
+}
+
+function renderAgentAi() { renderAiStatus(); renderAiMembers(); }
+
+async function issueAiKey(name) {
+  const aiName = (name || '').trim();
+  if (!aiName) { toast('AI 이름을 적어 주세요'); $('#aiInviteName')?.focus(); return; }
+  if (!ai.room || !ai.room.connected) { toast('먼저 AI 단톡방에 연결해 주세요'); openAiModal(); return; }
+  if (!ai.room.isAdmin) { toast('초대 키 발급에는 방 주인 키가 필요해요'); openAiModal(); return; }
+  const btn = $('#aiInviteBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '발급 중…'; }
+  try {
+    const data = await ai.room.issueKey(aiName);
+    const key = data?.key?.key || '';
+    const text = data?.invite_text || data?.invite_guide || '';
+    ai.savedInvites = ai.savedInvites || {};
+    ai.savedInvites[key] = { aiName, text, createdAt: Date.now() };
+    renderInviteResult({ aiName, key, text });
+    renderAiMembers();
+    toast(`✉️ ${aiName} 초대 키를 만들었어요`);
+  } catch (err) {
+    toast('발급 실패 · ' + (err.message || '방 주인 키를 확인해 주세요'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '초대 키 발급'; }
+  }
+}
+
+function renderInviteResult({ aiName, key, text }) {
+  const box = $('#aiInviteResult');
+  if (!box) return;
+  box.hidden = false;
+  box.innerHTML = `
+    <h4>🟢 ${esc(aiName)} 초대 키가 만들어졌어요</h4>
+    <div class="key-line">
+      <code id="inviteKeyText">${esc(key)}</code>
+      <button class="ghost-btn sm" data-copy="key">키 복사</button>
+    </div>
+    <label class="field"><span>초대 안내문 (그대로 복사해서 ${esc(aiName)} 대화창에 붙여넣으세요)</span>
+      <textarea id="inviteGuideText" readonly>${esc(text)}</textarea>
+    </label>
+    <div class="ir-foot">
+      <button class="primary-btn" data-copy="guide">안내문 복사</button>
+      <button class="ghost-btn sm" data-copy="both">키 + 안내문 복사</button>
+    </div>
+    <p class="ir-note">키 원본은 지금 이 화면에서만 볼 수 있어요. 서버에는 해시만 저장되니 잃어버리면 새로 발급해야 합니다.</p>`;
+  box.dataset.key = key;
+  box.dataset.text = text;
+}
+
+/* ══════════ 헤더 · 히어로 · 파트 ══════════ */
+function tasksOf(status) {
+  return Object.values(state.tasks).filter((t) => !t.deleted && t.status === status);
+}
+function routinesOf(kind) {
+  return Object.values(state.routines).filter((r) => !r.deleted && r.kind === kind && r.enabled !== false);
+}
+function partItems(part) {
+  if (part === 'command') return tasksOf('todo');
+  if (part === 'work') return tasksOf('doing');
+  if (part === 'meeting') return [];
+  if (part === 'lounge') return Object.values(state.memos).filter((m) => !m.deleted);
+  const re = PART_KEYWORDS[part] || PART_KEYWORDS.routine;
+  return [...routinesOf('daily'), ...routinesOf('weekly'), ...routinesOf('periodic')]
+    .filter((r) => re.test(`${r.title || ''} ${r.note || ''}`));
+}
+function partCount(part) {
+  if (part === 'meeting') return aiConnected() ? (ai.room.messages || []).length : 0;
+  return partItems(part).length;
+}
+
+function renderHero() {
+  const activeParts = PART_ORDER.filter((p) => partCount(p) > 0).length;
+  const heroParts = $('#heroParts');
+  if (heroParts) heroParts.textContent = `${activeParts}개 파트`;
+
+  const live = $('#partLive');
+  if (live) live.textContent = String(activeParts);
+
+  const team = $('#teamCount');
+  if (team) {
+    const names = new Set();
+    if (aiConnected()) {
+      for (const m of ai.room.members || []) if (m.is_active && m.ai_name !== '와플') names.add(m.ai_name);
+    } else {
+      for (const a of onlineAgents()) if (a.id !== meId) names.add(a.name);
+      for (const p of knownPeers) names.add(p.name);
+    }
+    team.textContent = String(names.size);
+  }
+
+  const motionText = $('#motionText');
+  if (motionText) motionText.textContent = motionOn ? 'ON' : 'OFF';
+  document.body.classList.toggle('motion-off', !motionOn);
+
+  PART_ORDER.forEach((p) => {
+    const badge = document.querySelector(`[data-badge="${p}"]`);
+    if (!badge) return;
+    const n = partCount(p);
+    badge.textContent = n > 9 ? '9+' : String(n);
+    badge.hidden = n === 0;
+  });
+}
+
+function partSummary(part) {
+  if (part === 'meeting') {
+    if (!aiConnected()) return 'AI 서버를 연결하면 대화가 여기에 보여요';
+    const last = (ai.room.messages || []).slice(-1)[0];
+    return last ? `${last.sender_name}: ${short(last.content, 18)}` : '아직 대화가 없어요';
+  }
+  if (part === 'lounge') {
+    const n = partItems('lounge').length;
+    return n ? `공용 메모 ${n}개` : '아직 메모가 없어요';
+  }
+  const items = partItems(part);
+  if (!items.length) return part === 'command' ? '대기 중인 지시가 없어요' : part === 'work' ? '진행 중인 작업이 없어요' : '예정된 항목이 없어요';
+  if (part === 'command' || part === 'work') return short(items[0].title, 20) + (items.length > 1 ? ` 외 ${items.length - 1}` : '');
+  return short(items[0].title, 20) + (items.length > 1 ? ` 외 ${items.length - 1}` : '');
+}
+
+function renderParts() {
+  const list = $('#partList');
+  if (!list) return;
+  const sig = PART_ORDER.map((p) => `${p}:${partCount(p)}:${partSummary(p)}`).join('|');
+  if (list.dataset.sig === sig) return;
+  list.dataset.sig = sig;
+  list.innerHTML = PART_ORDER.map((p) => {
+    const def = PARTS[p];
+    const n = partCount(p);
+    return `<button class="part-card" data-part="${p}">
+      <span class="pc-emoji">${def.emoji}</span>
+      <span class="pc-body">
+        <b>${esc(def.name)}</b>
+        <span>${esc(partSummary(p))}</span>
+      </span>
+      <span class="pc-pill ${n ? '' : 'idle'}">${n ? `${n}건` : '대기'}</span>
+    </button>`;
+  }).join('');
+}
+
+function openPart(part) {
+  const def = PARTS[part];
+  if (!def) return;
+  const titleEl = $('#partTitle');
+  if (titleEl) titleEl.textContent = `${def.emoji} ${def.name}`;
+  const body = $('#partBody');
+  const goBtn = $('#partGo');
+  if (goBtn) {
+    goBtn.textContent = part === 'meeting' ? '회의실 열기' : part === 'lounge' ? '메모 열기' : part === 'command' ? '지휘실 열기' : part === 'work' ? '작업실 열기' : '루틴 열기';
+    goBtn.dataset.part = part;
+  }
+  let html = `<p class="modal-sub">${esc(def.desc)}</p>`;
+  if (part === 'meeting') {
+    if (!aiConnected()) {
+      html += `<p class="empty-hint" style="text-align:left">AI 단톡방을 연결하면 와플·Claude·ChatGPT·Gemini의 최근 대화가 여기에 보여요.</p>
+        <button class="ghost-btn" data-open-ai="1">AI 단톡방 연결하기</button>`;
+    } else {
+      const msgs = (ai.room.messages || []).slice(-8);
+      html += msgs.length
+        ? `<div class="part-msgs">${msgs.map((m) => `<div class="pm"><b>${esc(m.sender_name)}</b><span>${esc(m.content)}</span><em>${timeHM(Date.parse(m.created_at))}</em></div>`).join('')}</div>`
+        : '<p class="empty-hint" style="text-align:left">아직 대화가 없어요. 회의실에서 첫 글을 남겨 보세요.</p>';
+    }
+  } else if (part === 'lounge') {
+    const memos = partItems('lounge').sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 6);
+    html += memos.length
+      ? `<div class="part-msgs">${memos.map((m) => `<div class="pm"><b>📝 ${esc(m.title)}</b>${m.body ? `<span>${esc(short(m.body, 60))}</span>` : ''}<em>${dateHM(m.updatedAt)}</em></div>`).join('')}</div>`
+      : '<p class="empty-hint" style="text-align:left">아직 메모가 없어요. 메모 탭에서 첫 메모를 남겨 보세요.</p>';
+  } else {
+    const items = partItems(part);
+    if (!items.length) {
+      html += `<p class="empty-hint" style="text-align:left">${part === 'command' ? '아직 대기 중인 지시가 없어요. 지휘실에서 한 줄 지시를 내려 보세요.' : part === 'work' ? '지금 진행 중인 작업이 없어요.' : '이 파트에 예정된 항목이 없어요. 루틴 탭에서 추가할 수 있어요.'}</p>`;
+    } else {
+      html += `<div class="part-msgs">${items.slice(0, 12).map((it) => {
+        if (part === 'command' || part === 'work') {
+          return `<div class="pm"><b>${esc(it.title)}</b><span>${esc(ownerName(it.owner))} · ${esc(it.priority || '보통')}</span><em>${timeHM(it.updatedAt)}</em></div>`;
+        }
+        const emoji = PART_EMOJI[part] || '🗓️';
+        return `<div class="pm"><b>${emoji} ${esc(it.title)}</b><span>${esc(it.note || (it.kind === 'daily' ? '매일' : '예약'))}</span><em>${esc(it.when)}</em></div>`;
+      }).join('')}</div>`;
+    }
+  }
+  body.innerHTML = html;
+  openModal('partModal');
+}
+
+/* ══════════ 렌더: 오피스 맵 캐릭터 ══════════ */
 const agentEls = new Map();
 
 function paintAgentEl(el, a, spot) {
@@ -599,13 +910,14 @@ function renderAgents() {
         <span class="me-mark" aria-hidden="true">나</span>
         <div class="tag"><i></i><span></span></div>
         <div class="body"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span></div>`;
+      const aid = a.id;
       el.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (a.id === meId) openProfile();
-        else openAssign(a.id);
+        if (aid === meId) openProfile();
+        else openAssign(aid);
       });
       layer.appendChild(el);
-      agentEls.set(a.id, el);
+      agentEls.set(aid, el);
     }
     paintAgentEl(el, a, spots.get(a.id) || { x: a.x, y: a.y });
   }
@@ -634,46 +946,76 @@ function moveMe(x, y) {
   publishMeThrottled();
 }
 
-function enterZone(zone) {
-  const [x, y] = ZONE_SPOT[zone];
-  moveMe(x, y);
-  const a = state.agents[meId];
-  if (a) { a.room = zone; a.updatedAt = Date.now(); publishMe(); }
-  renderAgents();
-  if (zone === 'meeting') { switchTab('meeting'); toast('🏛️ 대회의실로 이동했어요'); }
-  else if (zone === 'command') { switchTab('work'); toast('💻 지휘실로 이동했어요'); }
-  else toast('☕ 라운지 — 잠깐 쉬어가는 중');
+/* ══════════ 렌더: 회의실 ══════════ */
+function meetingMessages() {
+  if (aiConnected()) {
+    return (ai.room.messages || []).map((m) => ({
+      id: 'ai-' + m.id,
+      name: m.sender_name || 'AI',
+      initial: (m.sender_name || '·').slice(0, 1),
+      color: colorForName(m.sender_name),
+      text: m.content,
+      ts: Date.parse(m.created_at) || Date.now(),
+      mine: ai.myIds.has(m.id) || (ai.room.isAdmin && m.sender_name === '다윤'),
+      ai: true,
+    }));
+  }
+  const me = state.agents[meId];
+  return state.messages.slice(-200).map((m) => ({
+    id: m.id,
+    name: m.name,
+    initial: m.initial,
+    color: m.color,
+    text: m.text,
+    ts: m.ts,
+    mine: m.agentId === meId,
+    ai: false,
+  }));
 }
 
-/* ══════════ 렌더: 회의실 ══════════ */
 function renderMeeting() {
-  const participants = onlineAgents().filter((a) => a.room === 'meeting');
-  $('#partCount').textContent = `${participants.length}명`;
-  const pSig = participants.map((a) => a.id + a.name + a.initial).join('|');
-  const pBox = $('#participantList');
-  if (pBox.dataset.sig !== pSig) {
-    pBox.dataset.sig = pSig;
-    pBox.innerHTML = participants.length
-      ? participants.map((a) => `<span class="chip ${a.id === meId ? 'me' : ''}" style="--c:${esc(a.color)}"><i>${esc(a.initial)}</i>${esc(a.name)}${a.id === meId ? '<span class="away">나</span>' : ''}</span>`).join('')
-      : '<span class="chip"><i style="--c:#b3a293">·</i>아직 아무도 없어요</span>';
+  const msgs = meetingMessages();
+  const participants = $('#participantList');
+  const countEl = $('#partCount');
+
+  if (participants) {
+    let chips = '';
+    if (aiConnected()) {
+      const members = (ai.room.members || []).filter((m) => m.is_active);
+      countEl.textContent = `${members.length}명`;
+      chips = members.length
+        ? members.map((m) => `<span class="chip"><i style="--c:${colorForName(m.ai_name)}">${esc((m.ai_name || '·').slice(0, 1))}</i>${esc(m.ai_name)}</span>`).join('')
+        : '<span class="chip"><i style="--c:#b3a293">·</i>등록된 AI가 없어요</span>';
+    } else {
+      const here = onlineAgents().filter((a) => a.room === 'meeting');
+      countEl.textContent = `${here.length}명`;
+      chips = here.length
+        ? here.map((a) => `<span class="chip ${a.id === meId ? 'me' : ''}" style="--c:${esc(a.color)}"><i>${esc(a.initial)}</i>${esc(a.name)}${a.id === meId ? '<span class="away">나</span>' : ''}</span>`).join('')
+        : '<span class="chip"><i style="--c:#b3a293">·</i>아직 아무도 없어요</span>';
+    }
+    const sig = chips;
+    if (participants.dataset.sig !== sig) {
+      participants.dataset.sig = sig;
+      participants.innerHTML = chips;
+    }
   }
 
   const agendaInput = $('#agendaInput');
-  if (document.activeElement !== agendaInput) agendaInput.value = state.agenda.text || '';
+  if (agendaInput && document.activeElement !== agendaInput) agendaInput.value = state.agenda.text || '';
 
   const list = $('#chatList');
   const inner = $('#chatInner');
+  if (!list || !inner) return;
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 90;
-  const msgs = state.messages.slice(-200);
   $('#chatHint').hidden = msgs.length > 0;
   inner.hidden = msgs.length === 0;
-  const lastId = msgs.length ? msgs[msgs.length - 1].id : '';
+  const lastId = msgs.length ? String(msgs[msgs.length - 1].id) : '';
   if (inner.dataset.sig !== lastId + ':' + msgs.length) {
     inner.innerHTML = msgs.map((m) => `
-      <div class="msg ${m.agentId === meId ? 'mine' : ''}">
+      <div class="msg ${m.mine ? 'mine' : ''}">
         <div class="mav" style="--c:${esc(m.color || COLORS[0])}">${esc(m.initial || 'ㅇ')}</div>
         <div class="mb">
-          <div class="mh"><span class="mn">${esc(m.name)}</span><span class="mt">${timeHM(m.ts)}</span></div>
+          <div class="mh"><span class="mn">${esc(m.name)}${m.ai ? ' <em class="ai-tag">AI</em>' : ''}</span><span class="mt">${timeHM(m.ts)}</span></div>
           <div class="mx">${esc(m.text)}</div>
         </div>
       </div>`).join('');
@@ -700,6 +1042,71 @@ function renderMeeting() {
 }
 
 /* ══════════ 렌더: 작업실 ══════════ */
+function scheduleEmoji(text) {
+  if (PART_KEYWORDS.trip.test(text)) return '✈️';
+  if (PART_KEYWORDS.money.test(text)) return '💳';
+  if (PART_KEYWORDS.routine.test(text)) return '⏰';
+  return '📌';
+}
+
+function renderSchedule() {
+  const box = $('#schedList');
+  if (!box) return;
+  const doing = tasksOf('doing');
+  const daily = routinesOf('daily');
+  const weekly = routinesOf('weekly');
+  const periodic = routinesOf('periodic');
+  const items = [];
+
+  for (const t of doing.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 4)) {
+    items.push({
+      emoji: '⚡',
+      title: t.title,
+      desc: `${ownerName(t.owner)} · ${t.note || '지금 진행 중이에요'}`,
+      pill: '진행 중',
+      cls: 'doing',
+      kind: 'task',
+      id: t.id,
+    });
+  }
+  for (const r of daily) {
+    items.push({
+      emoji: scheduleEmoji(`${r.title} ${r.note || ''}`),
+      title: r.title,
+      desc: r.note || '매일 정해진 시각에 자동으로 챙겨요',
+      pill: `매일 ${r.when}`,
+      cls: '',
+      kind: 'routine',
+      id: r.id,
+    });
+  }
+  for (const r of [...weekly, ...periodic]) {
+    items.push({
+      emoji: scheduleEmoji(`${r.title} ${r.note || ''}`),
+      title: r.title,
+      desc: r.note || '날짜가 정해진 루틴이에요',
+      pill: r.when,
+      cls: '',
+      kind: 'routine',
+      id: r.id,
+    });
+  }
+
+  if (!items.length) {
+    box.innerHTML = '<div class="sched-empty">아직 자동 스케줄이 없어요.<br>루틴 탭에서 첫 루틴을 추가하면 여기에 카드로 보여요.</div>';
+    return;
+  }
+  box.innerHTML = items.map((it) => `
+    <button class="sched-item" data-sched="${esc(it.kind)}:${esc(it.id)}">
+      <span class="si-emoji">${it.emoji}</span>
+      <span class="si-body">
+        <span class="si-title">${esc(it.title)}</span>
+        <span class="si-desc">${esc(it.desc)}</span>
+      </span>
+      <span class="sched-pill ${it.cls}">${esc(it.pill)}</span>
+    </button>`).join('');
+}
+
 function cardHTML(t) {
   const owner = ownerOf(t.owner);
   const mine = t.owner === meId;
@@ -718,7 +1125,7 @@ function cardHTML(t) {
       <div class="ct">${esc(t.title)}</div>
       ${t.note ? `<div class="cn">${esc(t.note)}</div>` : ''}
       <div class="cf">
-        <select class="opick" data-owner title="담당 피클 변경">${ownerOptionsHTML(t.owner)}</select>
+        <select class="opick" data-owner title="담당 변경">${ownerOptionsHTML(t.owner)}</select>
         ${mine || t.status === 'done' ? '' : '<button class="mv take" data-take="1" title="내가 맡기">내가 맡기</button>'}
         ${moves.map(([s, icon, label]) => `<button class="mv" data-move="${s}" title="${label}">${icon}</button>`).join('')}
         <button class="mv del" data-del="1" title="삭제">🗑</button>
@@ -731,14 +1138,23 @@ function renderKanban() {
   const rosterSig = assignableList().map((a) => a.id + ':' + a.label).join(',');
   const sig = tasks.map((t) => `${t.id}:${t.status}:${t.updatedAt}:${t.title}:${t.note || ''}:${t.owner}:${t.priority}`).join('|') + '||' + rosterSig;
   const board = $('#kanban');
-  if (board.dataset.sig === sig) return;
+  if (!board || board.dataset.sig === sig) return;
   board.dataset.sig = sig;
   const note = $('#kanbanNote');
   if (note) note.hidden = tasks.length > 0;
+  const summary = $('#taskSummary');
+  if (summary) {
+    const todo = tasks.filter((t) => t.status === 'todo').length;
+    const doing = tasks.filter((t) => t.status === 'doing').length;
+    const done = tasks.filter((t) => t.status === 'done').length;
+    summary.textContent = `대기 ${todo} · 진행 ${doing} · 완료 ${done}`;
+  }
   for (const status of ['todo', 'doing', 'done']) {
     const items = tasks.filter((t) => t.status === status).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     const box = $('#col-' + status);
-    $(`[data-count="${status}"]`).textContent = String(items.length);
+    if (!box) continue;
+    const countEl = document.querySelector(`[data-count="${status}"]`);
+    if (countEl) countEl.textContent = String(items.length);
     const emptyText = {
       todo: ['🗂️', '대기 중인 작업이 없어요'],
       doing: ['⚡', '진행 중인 작업이 없어요'],
@@ -750,11 +1166,17 @@ function renderKanban() {
   }
 }
 
-/* ────────── 담당 피클 목록 ────────── */
+/* ────────── 담당 목록 ────────── */
 function assignableList() {
   const rows = [];
   const me = state.agents[meId];
   if (me) rows.push({ id: me.id, label: `${me.name} (나)`, state: 'me' });
+  if (aiConnected()) {
+    for (const m of ai.room.members || []) {
+      if (!m.is_active) continue;
+      rows.push({ id: 'ai:' + m.id, label: `${m.ai_name} · AI`, state: 'ai' });
+    }
+  }
   Object.values(state.agents)
     .filter((a) => a.id !== meId && isOnline(a))
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'))
@@ -773,7 +1195,7 @@ function ownerOptionsHTML(selected) {
   let html = `<option value=""${!selected ? ' selected' : ''}>미배정</option>`;
   html += rows.map((r) => `<option value="${esc(r.id)}"${r.id === selected ? ' selected' : ''}>${esc(r.label)}</option>`).join('');
   if (selected && !rows.some((r) => r.id === selected)) {
-    html += `<option value="${esc(selected)}" selected>${esc(ownerOf(selected)?.name || '알 수 없는 피클')}</option>`;
+    html += `<option value="${esc(selected)}" selected>${esc(ownerOf(selected)?.name || '알 수 없는 담당')}</option>`;
   }
   return html;
 }
@@ -784,7 +1206,7 @@ function fillOwnerSelect(sel) {
   sel.innerHTML = ownerOptionsHTML(cur);
 }
 
-/* ══════════ 렌더: 비서현황 ══════════ */
+/* ══════════ 렌더: 비서현황 (내 피클) ══════════ */
 function assistantList() {
   const map = new Map();
   const me = state.agents[meId];
@@ -822,12 +1244,11 @@ function renderAgentCards() {
           <span class="acard-av" style="--c:${esc(a.color || COLORS[0])}">${esc(a.initial || 'ㅇ')}</span>
           <div class="acard-id">
             <b>${esc(a.name || '피클')}${isMe ? '<span class="me-badge">나</span>' : ''}</b>
-            <span>자음 ${esc(a.initial || 'ㅇ')} · <i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${esc(a.color || COLORS[0])}"></i> ${esc(a.color || '')}</span>
+            <span>${esc(ZONE_LABEL[a.room] || '지휘실')} · 자음 ${esc(a.initial || 'ㅇ')}</span>
           </div>
           <span class="acard-state ${a.online ? 'on' : 'off'}">${a.online ? '온라인' : '최근 참여'}</span>
         </div>
         <div class="acard-rows">
-          <div class="row"><i>📍</i><span><b>위치</b> · ${esc(ZONE_LABEL[a.room] || '지휘실')}</span></div>
           <div class="row"><i>⚡</i><span>${doing ? `<b>진행 중</b> · ${esc(doing.title)}` : `<b>대기 중</b> · 맡은 작업 없음${waiting ? ` · 대기 ${waiting}건` : ''}`}</span></div>
           <div class="row"><i>💬</i><span>${a.status ? esc(a.status) : '<span style="color:var(--muted)">상태 메시지 없음</span>'}</span></div>
         </div>
@@ -841,9 +1262,7 @@ function renderAgentCards() {
 }
 
 /* ══════════ 렌더: AI한도 ══════════ */
-function limitOf(id) {
-  return state.limits[id] || null;
-}
+function limitOf(id) { return state.limits[id] || null; }
 function gaugeClass(v) {
   if (v == null) return '';
   if (v <= 20) return 'low';
@@ -993,14 +1412,18 @@ function renderRoutines() {
 
 /* ══════════ 전체 렌더 ══════════ */
 function renderAll() {
-  renderHeader();
+  renderHero();
+  renderParts();
   renderAgents();
   renderMeeting();
+  renderSchedule();
   renderKanban();
   renderAgentCards();
   renderLimits();
   renderMemos();
   renderRoutines();
+  renderAiStatus();
+  renderAiMembers();
 }
 
 /* ══════════ 탭 ══════════ */
@@ -1009,12 +1432,13 @@ function switchTab(tab) {
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + tab));
   if (tab === 'meeting') {
     const list = $('#chatList');
-    list.scrollTop = list.scrollHeight;
+    if (list) list.scrollTop = list.scrollHeight;
     if (state.agents[meId] && state.agents[meId].room !== 'meeting') {
       const a = state.agents[meId];
       [a.x, a.y] = ZONE_SPOT.meeting; a.room = 'meeting'; a.updatedAt = Date.now();
       renderAgents(); saveState(); publishMe();
     }
+    renderMeeting();
   }
   if (tab === 'work') {
     clearBadge();
@@ -1024,8 +1448,9 @@ function switchTab(tab) {
       renderAgents(); saveState(); publishMe();
     }
     fillOwnerSelect($('#taskOwner'));
+    renderSchedule();
   }
-  if (tab === 'agents') renderAgentCards();
+  if (tab === 'agents') { renderAgentCards(); renderAiMembers(); renderAiStatus(); }
   if (tab === 'limits') renderLimits(true);
   if (tab === 'memo') renderMemos();
   if (tab === 'routine') renderRoutines();
@@ -1079,6 +1504,7 @@ function saveProfile() {
 let assignTargetId = null;
 
 function openAssign(id) {
+  if (String(id).startsWith('ai:')) { assignToAi(id); return; }
   const a = state.agents[id] || recallPeer(id);
   if (!a || id === meId) return;
   assignTargetId = id;
@@ -1102,6 +1528,22 @@ function openAssign(id) {
   $('#asStatusSel').value = 'todo';
   openModal('assignModal');
   setTimeout(() => $('#asTitle').focus(), 60);
+}
+
+/** AI 단톡방 멤버에게는 회의실에 글로 지시를 남깁니다. */
+async function assignToAi(id) {
+  const keyId = String(id).slice(3);
+  const member = (ai.room?.members || []).find((m) => m.id === keyId);
+  const name = member ? member.ai_name : 'AI';
+  if (!aiConnected()) { toast('AI 단톡방에 먼저 연결해 주세요'); openAiModal(); return; }
+  const text = prompt(`${name}에게 남길 지시를 한 줄로 적어 주세요`, '');
+  if (!text || !text.trim()) return;
+  try {
+    await ai.room.send(`[지시] ${name} · ${text.trim()}`);
+    toast(`💬 ${name}에게 회의실에 지시를 남겼어요`);
+  } catch (err) {
+    toast('지시를 남기지 못했어요 · ' + (err.message || '연결을 확인해 주세요'));
+  }
 }
 
 function createTask({ title, owner, priority, note, status }) {
@@ -1149,6 +1591,11 @@ function submitCommand() {
   const text = $('#cmdText').value.trim();
   if (!text) { toast('지시 내용을 적어 주세요'); $('#cmdText').focus(); return; }
   const owner = $('#cmdOwner').value;
+  if (String(owner).startsWith('ai:')) {
+    closeModal('commandModal');
+    assignToAiText(owner, text);
+    return;
+  }
   createTask({ title: text, owner, priority: $('#cmdPriority').value, status: $('#cmdStatus').value });
   const a = state.agents[meId];
   if (a) {
@@ -1160,20 +1607,86 @@ function submitCommand() {
   clearBadge();
 }
 
+async function assignToAiText(id, text) {
+  const keyId = String(id).slice(3);
+  const member = (ai.room?.members || []).find((m) => m.id === keyId);
+  const name = member ? member.ai_name : 'AI';
+  if (!aiConnected()) { toast('AI 단톡방에 먼저 연결해 주세요'); openAiModal(); return; }
+  try {
+    await ai.room.send(`[지시] ${name} · ${text}`);
+    toast(`💬 ${name}에게 회의실에 지시를 남겼어요`);
+  } catch (err) {
+    toast('지시를 남기지 못했어요 · ' + (err.message || '연결을 확인해 주세요'));
+  }
+}
+
+/* ══════════ AI 연결 모달 ══════════ */
+function openAiModal() {
+  $('#aiUrl').value = ai.config.url || AI_DEFAULT_URL;
+  $('#aiRoomId').value = ai.config.roomId || AI_DEFAULT_ROOM;
+  $('#aiKey').value = ai.config.key || '';
+  $('#aiTestResult').textContent = '';
+  $('#aiTestResult').className = 'fb-result';
+  openModal('aiModal');
+}
+
+async function testAiConnection() {
+  const url = ($('#aiUrl').value || '').trim().replace(/\/+$/, '');
+  const roomId = ($('#aiRoomId').value || '').trim();
+  const key = ($('#aiKey').value || '').trim();
+  const out = $('#aiTestResult');
+  if (!url || !roomId || !key) { out.textContent = '서버·방 ID·키를 모두 넣어 주세요'; out.className = 'fb-result bad'; return; }
+  out.textContent = '확인 중…'; out.className = 'fb-result';
+  try {
+    const res = await fetch(`${url}/rooms/${roomId}/members`, {
+      headers: { Authorization: `Bearer ${key}`, 'X-Admin-Key': key },
+      cache: 'no-store',
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data && data.message) || `HTTP ${res.status}`);
+    const n = data?.count ?? (data?.members || []).length;
+    out.textContent = `연결 OK · ${data?.room?.name || '방'} · AI ${n}명`;
+    out.className = 'fb-result ok';
+  } catch (err) {
+    out.textContent = '실패: ' + (err.message || err);
+    out.className = 'fb-result bad';
+  }
+}
+
+function saveAiConnection() {
+  const url = ($('#aiUrl').value || '').trim().replace(/\/+$/, '') || AI_DEFAULT_URL;
+  const roomId = ($('#aiRoomId').value || '').trim() || AI_DEFAULT_ROOM;
+  const key = ($('#aiKey').value || '').trim();
+  if (!key) { toast('키를 넣어 주세요'); $('#aiKey').focus(); return; }
+  ai.config = saveAiConfig({ url, roomId, key });
+  closeModal('aiModal');
+  initAiRoom();
+}
+
+function disconnectAi() {
+  clearAiConfig();
+  ai.config = loadAiConfig();
+  if (ai.room) { ai.room.destroy(); ai.room = null; }
+  renderAll();
+  toast('AI 단톡방 연결을 해제했어요');
+}
+
 /* ══════════ 모달 공통 ══════════ */
 function openModal(id) {
   const m = $('#' + id);
+  if (!m) return;
   m.hidden = false;
   document.body.classList.add('modal-open');
   if (id === 'dbModal') fillDbModal();
 }
 function closeModal(id) {
   const m = $('#' + id);
+  if (!m) return;
   m.hidden = true;
   if (!$$('.overlay').some((o) => !o.hidden)) document.body.classList.remove('modal-open');
 }
 
-/* ══════════ DB 설정 ══════════ */
+/* ══════════ 동기화 설정 ══════════ */
 function fillDbModal() {
   $$('.mode-card').forEach((c) => c.classList.toggle('sel', c.dataset.mode === mode));
   const radio = $(`.mode-card[data-mode="${mode}"] input`);
@@ -1183,6 +1696,8 @@ function fillDbModal() {
   $('#roomInput').value = room;
   $('#inviteUrl').value = inviteLink();
   $('#fbResult').textContent = '';
+  const serverUrl = $('#aiServerUrl');
+  if (serverUrl) serverUrl.value = ai.config.url;
   renderRelayList();
 }
 async function testFirebase() {
@@ -1226,21 +1741,6 @@ function inviteLink() {
   return `${base}?room=${encodeURIComponent(room)}`;
 }
 
-async function copyInvite() {
-  const url = inviteLink();
-  try {
-    await navigator.clipboard.writeText(url);
-    toast('🔗 초대 링크를 복사했어요');
-  } catch (_) {
-    const ta = document.createElement('textarea');
-    ta.value = url;
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); toast('🔗 초대 링크를 복사했어요'); } catch (e) { toast('링크: ' + url); }
-    ta.remove();
-  }
-}
-
 /* ══════════ 테마 ══════════ */
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
@@ -1248,7 +1748,7 @@ function applyTheme(t) {
   const icon = $('#themeIcon');
   if (icon) icon.textContent = t === 'dark' ? '☀️' : '🌙';
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = t === 'dark' ? '#161412' : '#f6f1ea';
+  if (meta) meta.content = t === 'dark' ? '#161412' : '#f6f1e9';
 }
 
 /* ══════════ 이벤트 연결 ══════════ */
@@ -1258,34 +1758,63 @@ function wire() {
     if (b) switchTab(b.dataset.tab);
   }));
 
-  $('#profileBtn').addEventListener('click', openProfile);
   $('#themeBtn').addEventListener('click', () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     applyTheme(next);
   });
-  $('#copyLinkBtn').addEventListener('click', copyInvite);
   $('#dbBtn').addEventListener('click', () => openModal('dbModal'));
+  $('#aiConnChip').addEventListener('click', openAiModal);
 
-  /* 지도 */
+  /* 오피스 맵 */
   const stage = $('#mapStage');
-  $$('.room-tag', stage).forEach((btn) => btn.addEventListener('click', (e) => {
+  if (stage) {
+    stage.addEventListener('click', (e) => {
+      if (e.target.closest('.agent') || e.target.closest('.part-badge')) return;
+      const r = stage.getBoundingClientRect();
+      moveMe(((e.clientX - r.left) / r.width) * 100, ((e.clientY - r.top) / r.height) * 100);
+    });
+  }
+  $$('.part-badge').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();
-    enterZone(btn.dataset.enter);
+    openPart(b.dataset.part);
   }));
-  stage.addEventListener('click', (e) => {
-    if (e.target.closest('.agent') || e.target.closest('.room-tag')) return;
-    const r = stage.getBoundingClientRect();
-    moveMe(((e.clientX - r.left) / r.width) * 100, ((e.clientY - r.top) / r.height) * 100);
+  $('#partList').addEventListener('click', (e) => {
+    const card = e.target.closest('[data-part]');
+    if (card) openPart(card.dataset.part);
   });
-  $('#commandBtn').addEventListener('click', openCommand);
-  $('#cmdSubmit').addEventListener('click', submitCommand);
+  $('#partBody').addEventListener('click', (e) => {
+    if (e.target.closest('[data-open-ai]')) { closeModal('partModal'); openAiModal(); }
+  });
+  $('#partGo').addEventListener('click', (e) => {
+    const part = e.currentTarget.dataset.part || 'command';
+    closeModal('partModal');
+    if (part === 'command') { switchTab('work'); setTimeout(openCommand, 120); }
+    else switchTab(PARTS[part].tab);
+  });
+  $('#motionPill').addEventListener('click', () => {
+    motionOn = !motionOn;
+    try { localStorage.setItem('po.motion', motionOn ? 'on' : 'off'); } catch (_) {}
+    renderHero();
+    toast(motionOn ? '✨ 캐릭터가 다시 움직여요' : '🧊 캐릭터 움직임을 멈췄어요');
+  });
 
   /* 회의실 */
-  $('#chatForm').addEventListener('submit', (e) => {
+  $('#chatForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = $('#chatInput');
     const text = input.value.trim();
     if (!text) return;
+    if (aiConnected()) {
+      try {
+        const data = await ai.room.send(text);
+        if (data?.message?.id) ai.myIds.add(data.message.id);
+        input.value = '';
+        renderMeeting();
+      } catch (err) {
+        toast('보내지 못했어요 · ' + (err.message || '연결을 확인해 주세요'));
+      }
+      return;
+    }
     const a = state.agents[meId];
     emit('chat', { msg: { id: uid(), agentId: meId, name: a.name, initial: a.initial, color: a.color, text, ts: Date.now() } });
     if (a.room !== 'meeting') {
@@ -1295,6 +1824,7 @@ function wire() {
     const list = $('#chatList');
     list.scrollTop = list.scrollHeight;
   });
+  $('#meetingConnectBtn').addEventListener('click', openAiModal);
 
   let agendaTimer = null;
   $('#agendaInput').addEventListener('input', (e) => {
@@ -1339,10 +1869,23 @@ function wire() {
     const title = $('#taskTitle').value.trim();
     if (!title) return;
     const owner = $('#taskOwner').value;
+    if (String(owner).startsWith('ai:')) {
+      taskForm.reset();
+      taskForm.hidden = true;
+      assignToAiText(owner, title);
+      return;
+    }
     createTask({ title, owner, priority: $('#taskPriority').value, note: $('#taskNote').value.trim() });
     taskForm.reset();
     taskForm.hidden = true;
     toast(owner ? `🗂️ ${ownerName(owner)}에게 지시했어요` : '🗂️ 미배정 작업으로 추가했어요');
+  });
+  $('#schedList').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-sched]');
+    if (!item) return;
+    const [kind] = item.dataset.sched.split(':');
+    if (kind === 'routine') switchTab('routine');
+    else switchTab('work');
   });
 
   $('#kanban').addEventListener('click', (e) => {
@@ -1368,6 +1911,7 @@ function wire() {
     if (!cur) return;
     const owner = sel.value || '';
     if (owner === (cur.owner || '')) return;
+    if (String(owner).startsWith('ai:')) { assignToAiText(owner, cur.title); return; }
     if (owner && !state.agents[owner]) {
       const p = recallPeer(owner);
       if (p) {
@@ -1413,6 +1957,43 @@ function wire() {
     const assign = e.target.closest('[data-assign]');
     if (assign) { openAssign(assign.dataset.assign); return; }
     if (e.target.closest('[data-edit-me]')) openProfile();
+  });
+
+  /* AI 단톡방 */
+  $('#aiConnectBtn').addEventListener('click', openAiModal);
+  $('#aiDisconnectBtn').addEventListener('click', disconnectAi);
+  $('#aiTestBtn').addEventListener('click', testAiConnection);
+  $('#aiSaveBtn').addEventListener('click', saveAiConnection);
+  $('#aiInviteBtn').addEventListener('click', () => issueAiKey($('#aiInviteName').value));
+  $$('.invite-presets button').forEach((b) => b.addEventListener('click', () => {
+    $('#aiInviteName').value = b.dataset.preset;
+    issueAiKey(b.dataset.preset);
+  }));
+  $('#aiMemberList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-toggle-key]');
+    if (!btn) return;
+    const keyId = btn.dataset.toggleKey;
+    const nextActive = btn.dataset.active !== '1';
+    btn.disabled = true;
+    try {
+      await ai.room.setKeyActive(keyId, nextActive);
+      renderAiMembers();
+      toast(nextActive ? '키를 다시 켰어요' : '키를 꺼 두었어요');
+    } catch (err) {
+      toast('바꾸지 못했어요 · ' + (err.message || '방 주인 키를 확인해 주세요'));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  $('#aiInviteResult').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-copy]');
+    if (!btn) return;
+    const box = $('#aiInviteResult');
+    const key = box.dataset.key || '';
+    const text = box.dataset.text || '';
+    if (btn.dataset.copy === 'key') copyText(key, '🔑 초대 키를 복사했어요');
+    else if (btn.dataset.copy === 'guide') copyText(text, '📋 초대 안내문을 복사했어요');
+    else copyText(`${text}\n\n[내 초대 키]\n${key}`, '📋 키와 안내문을 복사했어요');
   });
 
   /* AI한도 */
@@ -1513,6 +2094,7 @@ function wire() {
   });
   $('#asSubmit').addEventListener('click', submitAssign);
   $('#asTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitAssign(); } });
+  $('#cmdSubmit').addEventListener('click', submitCommand);
 
   $$('[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(b.dataset.close)));
   $$('.overlay').forEach((o) => o.addEventListener('click', (e) => { if (e.target === o) closeModal(o.id); }));
@@ -1526,9 +2108,14 @@ function wire() {
   }));
   $('#fbTest').addEventListener('click', testFirebase);
   $('#dbApply').addEventListener('click', applyDbSettings);
-  $('#copyInvite2').addEventListener('click', copyInvite);
+  $('#copyInvite2').addEventListener('click', () => copyText(inviteLink(), '🔗 초대 링크를 복사했어요'));
+  $('#aiServerOpen').addEventListener('click', () => window.open(ai.config.url, '_blank', 'noopener'));
 
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) publishMe(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    publishMe();
+    if (aiConnected()) ai.room.pull().catch(() => {});
+  });
   window.addEventListener('beforeunload', rememberPeers);
 }
 
@@ -1543,13 +2130,15 @@ function renderAgendaSaved(on) {
 applyTheme(localStorage.getItem('po.theme') === 'dark' ? 'dark' : 'light');
 loadState();
 wire();
-renderClock();
 renderAll();
 switchTab('map');
 startSync();
+initAiRoom();
 
-setInterval(renderClock, 1000);
-setInterval(() => { renderAgents(); renderHeader(); rememberPeers(); }, 20000);
+setInterval(() => {
+  renderAgents();
+  rememberPeers();
+}, 20000);
 
 // 내 피클 생존 신호
 setInterval(() => {
@@ -1581,6 +2170,7 @@ window.__po = {
   get bus() { return bus; },
   get mode() { return mode; },
   get peers() { return knownPeers; },
+  get ai() { return ai; },
   room,
   meId,
 };
