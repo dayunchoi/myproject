@@ -989,7 +989,7 @@ function meetingMessages() {
       text: m.content,
       ts: Date.parse(m.created_at) || Date.now(),
       mine: ai.myIds.has(m.id) || (ai.room.isAdmin && m.sender_name === '다윤'),
-      ai: true,
+      ai: m.sender_name !== '다윤',
     }));
   }
   const me = state.agents[meId];
