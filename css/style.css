@@ -315,7 +315,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 }
 .map-stage {
   position: relative;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 1402 / 1122;
   border-radius: 24px;
   overflow: hidden;
   background: #efe3d3;
@@ -326,9 +326,12 @@ ul { margin: 0; padding: 0; list-style: none; }
 .map-img {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
-  object-fit: cover;
+  object-fit: fill;
   user-select: none;
   pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 }
 [data-theme="dark"] .map-img { filter: saturate(1.03) contrast(1.01); }
 .map-stage::after {
@@ -369,93 +372,145 @@ ul { margin: 0; padding: 0; list-style: none; }
 .tag-meeting { left: 6%; top: 74%; }
 .tag-lounge { right: 4%; top: 34%; }
 
-.agent-layer { position: absolute; inset: 0; z-index: 3; }
+.agent-layer { position: absolute; inset: 0; z-index: 3; --spr: 1; }
+.agent-layer.crew-off .spr svg,
+.agent-layer.crew-off .spr .f2 { animation: none !important; }
+
+/* 도트 캐릭터 — 원점은 발(아래) 중앙 */
 .agent {
   position: absolute;
-  transform: translate(-50%, -100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  width: 0; height: 0;
   cursor: pointer;
-  transition: left .55s cubic-bezier(.4, 0, .2, 1), top .55s cubic-bezier(.4, 0, .2, 1), transform .15s;
-  filter: drop-shadow(0 10px 10px rgba(80, 55, 35, .12));
+  --lift: 0px;
+  --flip: 1;
 }
-.agent:hover { transform: translate(-50%, -100%) scale(1.08); z-index: 6; }
-.agent .tag {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(255, 253, 250, .95);
-  border: 1px solid rgba(255, 255, 255, .7);
-  font-size: 11px;
-  font-weight: 800;
-  color: #4a3b31;
-  white-space: nowrap;
-  box-shadow: 0 5px 12px rgba(70, 48, 30, .16);
+.agent .spr {
+  position: absolute;
+  left: 0; bottom: 0;
+  width: calc(20px * var(--spr) * 1.42);
+  height: calc(24px * var(--spr) * 1.42);
+  transform: translateX(-50%) scaleX(var(--flip));
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 3px 3px rgba(60, 38, 25, .32));
+  transition: filter .15s;
 }
-[data-theme="dark"] .agent .tag { background: rgba(40, 35, 29, .9); color: #f4eadf; border-color: rgba(255, 255, 255, .12); }
-.agent .tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2.5px rgba(255, 255, 255, .55); flex: none; }
-.agent .body {
-  position: relative;
-  width: 29px; height: 31px;
-  margin-top: 2px;
-  border-radius: 48% 48% 42% 42% / 58% 58% 40% 40%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .42), rgba(0, 0, 0, .16)), var(--c);
-  box-shadow: inset 0 -3px 6px rgba(90, 60, 40, .18), 0 3px 6px rgba(80, 55, 35, .18);
+.agent .spr svg {
+  width: 100%; height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  shape-rendering: crispEdges;
+  overflow: visible;
 }
-.agent .eye {
-  position: absolute; top: 11px;
-  width: 2.6px; height: 3.2px;
-  border-radius: 50%;
-  background: rgba(50, 35, 28, .82);
-}
-.agent .eye.l { left: 8px; }
-.agent .eye.r { right: 8px; }
-.agent .mouth {
-  position: absolute; left: 50%; top: 18px;
-  width: 5px; height: 2px;
+.agent .spr .f2 { opacity: 0; }
+.agent .spr .f1 { opacity: 1; }
+.agent[data-state="walk"] .spr .f2 { animation: spr-f2 .34s steps(1, end) infinite; }
+.agent[data-state="walk"] .spr svg { animation: spr-bob .34s steps(2, end) infinite; }
+.agent[data-state="work"] .spr .f2,
+.agent[data-state="debate"] .spr .f2 { animation: spr-f2 .48s steps(1, end) infinite; }
+.agent:hover .spr { filter: drop-shadow(0 4px 4px rgba(60, 38, 25, .42)) brightness(1.05); }
+body.motion-off .agent .spr svg,
+body.motion-off .agent .spr .f2 { animation: none !important; }
+body.motion-off .agent .spr .f2 { opacity: 0; }
+
+@keyframes spr-f2 { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes spr-bob { 0% { transform: translateY(0); } 50% { transform: translateY(-1px); } 100% { transform: translateY(0); } }
+
+/* 상태 말풍선 (도트 스타일) */
+.agent .bub {
+  position: absolute;
+  left: 0;
+  bottom: calc(24px * var(--spr) * 1.42 + 4px + var(--lift));
   transform: translateX(-50%);
-  border-radius: 0 0 4px 4px;
-  background: rgba(50, 35, 28, .45);
+  max-width: 44vw;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fffdf6;
+  border: 1.5px solid #6b4e3a;
+  box-shadow: 2px 2px 0 rgba(80, 55, 35, .22);
+  color: #4a3b31;
+  font-size: max(9px, calc(9.5px * var(--spr)));
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: bottom .2s ease;
 }
-.agent.me .tag { background: #fffaf5; color: #4a3b31; box-shadow: 0 0 0 2px var(--rose), 0 6px 14px rgba(70, 48, 30, .18); }
-[data-theme="dark"] .agent.me .tag { background: #2b2520; color: #fff6ee; box-shadow: 0 0 0 2px var(--rose), 0 6px 14px rgba(0, 0, 0, .4); }
-.agent.me .body { box-shadow: inset 0 -3px 6px rgba(90, 60, 40, .16), 0 0 0 2px rgba(255, 255, 255, .7), 0 4px 8px rgba(80, 55, 35, .2); }
+.agent .bub::after {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -4px;
+  width: 6px; height: 6px;
+  transform: translateX(-50%) rotate(45deg);
+  background: #fffdf6;
+  border-right: 1.5px solid #6b4e3a;
+  border-bottom: 1.5px solid #6b4e3a;
+}
+[data-theme="dark"] .agent .bub { background: #332b24; color: #ffeede; border-color: #7d5c45; }
+[data-theme="dark"] .agent .bub::after { background: #332b24; border-color: #7d5c45; }
+.agent[data-state="work"] .bub { border-color: #a9793a; }
+.agent[data-state="debate"] .bub { border-color: #b4614f; }
+.agent[data-state="speak"] .bub { border-color: #b4614f; box-shadow: 2px 2px 0 rgba(180, 97, 79, .3); }
+
+/* 이름표 (발 아래) */
+.agent .plate {
+  position: absolute;
+  left: 0; top: 1px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 252, 246, .94);
+  border: 1px solid rgba(107, 78, 58, .45);
+  box-shadow: 0 1px 0 rgba(80, 55, 35, .2);
+  color: #4a3b31;
+  font-size: max(8px, calc(8.5px * var(--spr)));
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.agent .plate i { width: 5px; height: 5px; border-radius: 1px; background: var(--c); flex: none; }
+[data-theme="dark"] .agent .plate { background: rgba(43, 37, 31, .92); color: #ffeede; border-color: rgba(255, 255, 255, .16); }
+.agent.me .plate { background: #fff6ee; box-shadow: 0 0 0 1.5px var(--rose), 0 1px 0 rgba(80, 55, 35, .2); }
+[data-theme="dark"] .agent.me .plate { background: #3a2f27; color: #fff6ee; }
 .agent .me-mark {
   display: none;
   position: absolute;
-  right: -8px; top: -6px;
+  left: calc(8px * var(--spr));
+  bottom: calc(20px * var(--spr));
   background: var(--rose);
   color: #fff;
-  font-size: 8px;
+  font-size: max(7px, calc(7.5px * var(--spr)));
   font-weight: 800;
-  border-radius: 999px;
-  padding: 1px 5px;
+  border-radius: 3px;
+  padding: 0 3px;
+  line-height: 1.5;
 }
 .agent.me .me-mark { display: block; }
-.agent.offline { opacity: .5; filter: grayscale(.4); }
-.agent .bubble {
-  display: none;
-  max-width: 130px;
-  margin-bottom: 3px;
-  padding: 4px 8px;
-  border-radius: 10px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  color: var(--ink-2);
-  font-size: 9.5px;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-shadow: var(--shadow-sm);
+.agent.offline { opacity: .55; filter: grayscale(.45); }
+
+/* 일하는 책상 모니터 불빛 */
+.desk-glow {
+  position: absolute;
+  width: 7.5%; height: 7%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 228, 158, .62), rgba(255, 228, 158, 0) 68%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity .5s;
+  mix-blend-mode: screen;
 }
-.agent .bubble.show { display: block; }
+.desk-glow.on { opacity: 1; animation: desk-pulse 2.6s ease-in-out infinite; }
+@keyframes desk-pulse { 0%, 100% { opacity: .45; } 50% { opacity: .95; } }
 
 .live-chip {
   position: absolute;
   right: 14px; top: 14px;
-  z-index: 5;
+  z-index: 30;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 10px;
   border-radius: 999px;
@@ -475,6 +530,65 @@ ul { margin: 0; padding: 0; list-style: none; }
 .lg { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 
 /* ══════════ 회의실 ══════════ */
+/* ────────── 회의실 · AI끼리 대화 ────────── */
+.discuss-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  background: linear-gradient(135deg, #fff6ef, #fdf9f1);
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--rose);
+  border-radius: var(--r-lg);
+  padding: 13px 15px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="dark"] .discuss-card { background: linear-gradient(135deg, #2e2620, #262019); border-left-color: var(--rose); }
+.discuss-card .dc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.discuss-card .dc-head b { font-size: 13.5px; font-weight: 800; color: var(--ink); }
+.discuss-card .dc-head span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.discuss-card .dc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.discuss-card .dc-row input {
+  flex: 1 1 220px;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.discuss-card .dc-row input:focus { outline: 2px solid var(--rose); outline-offset: 1px; }
+.discuss-card .dc-row select {
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.discuss-card .dc-row .primary-btn { height: 38px; padding: 0 16px; font-size: 13px; white-space: nowrap; }
+.discuss-card .primary-btn:disabled { opacity: .6; cursor: default; }
+.discuss-card .dc-state {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--rose-ink);
+}
+.discuss-card.busy { border-left-color: #cf7c6f; }
+.discuss-card.busy .dc-state { animation: dc-pulse 1.6s ease-in-out infinite; }
+@keyframes dc-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.discuss-card .dc-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.discuss-card .dc-note b { color: var(--ink-2); }
+@media (max-width: 720px) {
+  .discuss-card .dc-row input { flex: 1 1 100%; }
+  .discuss-card .dc-row .primary-btn { flex: 1 1 auto; }
+}
+
 .meeting-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr); gap: 14px; align-items: start; }
 .chat-panel { display: flex; flex-direction: column; padding: 14px; min-height: 520px; }
 .agenda-bar { display: flex; align-items: center; gap: 10px; padding: 4px 4px 12px; border-bottom: 1px dashed var(--line); }
@@ -807,13 +921,6 @@ ul { margin: 0; padding: 0; list-style: none; }
   .tag-command { top: 3.5%; }
   .tag-meeting { top: 75%; }
   .tag-lounge { top: 33%; }
-  .agent .tag { font-size: 9.5px; padding: 4px 7px; gap: 4px; }
-  .agent .tag i { width: 6px; height: 6px; }
-  .agent .body { width: 25px; height: 27px; }
-  .agent .eye { top: 10px; width: 2.2px; height: 2.8px; }
-  .agent .eye.l { left: 7px; }
-  .agent .eye.r { right: 7px; }
-  .agent .mouth { top: 16px; }
   .map-foot { padding: 11px 5px 3px; }
   .map-hint { font-size: 10.5px; }
   .legend { gap: 12px; font-size: 11px; }
@@ -1013,7 +1120,7 @@ button.hpill:hover { border-color: var(--wood); color: var(--wood-ink); }
   left: var(--x);
   top: var(--y);
   transform: translate(-50%, -50%);
-  z-index: 5;
+  z-index: 8;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1421,7 +1528,13 @@ button.hpill:hover { border-color: var(--wood); color: var(--wood-ink); }
 }
 /* 움직임 끄기 */
 body.motion-off .agent { transition: none; }
-body.motion-off .agent:hover { transform: translate(-50%, -100%); }
+/* 좁은 화면에서는 조용한 캐릭터 말풍선을 접어 겹침을 줄입니다 */
+@media (max-width: 720px) {
+  .agent[data-state="idle"] .bub,
+  .agent[data-state="lounge"] .bub,
+  .agent[data-state="meeting"] .bub { display: none; }
+  .agent .bub { max-width: 36vw; }
+}
 
 /* 모바일: 연결 칩은 점 하나로 압축해 헤더 한 줄 유지 */
 @media (max-width: 560px) {

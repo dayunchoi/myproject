@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#f6f1e9">
 <title>다윤 비서실</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧇</text></svg>">
-<link rel="preload" as="image" href="assets/office-clay.webp">
-<link rel="stylesheet" href="css/style.css?v=52">
+<link rel="preload" as="image" href="assets/office-pixel.webp">
+<link rel="stylesheet" href="css/style.css?v=60">
 </head>
 <body>
 <div class="app">
@@ -65,28 +65,28 @@
 
       <div class="map-card">
         <div class="map-stage" id="mapStage">
-          <img class="map-img" src="assets/office-clay.webp" alt="클레이 3D 오피스 — 지휘실, 대회의실, 라운지" draggable="false">
+          <img class="map-img" src="assets/office-pixel.webp" alt="스타듀밸리풍 도트 오피스 — 4개 나무 책상, 원형 회의 테이블, 커피 라운지" draggable="false">
 
-          <!-- 파트 배지 -->
-          <button class="part-badge pb-command" data-part="command" style="--x:50%;--y:13%">
+          <!-- 파트 배지 · 새 도트 맵의 실제 구역에 맞춘 좌표 -->
+          <button class="part-badge pb-command" data-part="command" style="--x:50%;--y:9.5%">
             <span class="pb-i">🎯</span>지휘실<span class="pb-n" data-badge="command" hidden>0</span>
           </button>
-          <button class="part-badge pb-work" data-part="work" style="--x:22%;--y:31%">
+          <button class="part-badge pb-work" data-part="work" style="--x:33%;--y:28.5%">
             <span class="pb-i">📋</span>작업실<span class="pb-n" data-badge="work" hidden>0</span>
           </button>
-          <button class="part-badge pb-meeting" data-part="meeting" style="--x:17%;--y:66%">
+          <button class="part-badge pb-meeting" data-part="meeting" style="--x:77%;--y:73%">
             <span class="pb-i">🏛️</span>대회의실<span class="pb-n" data-badge="meeting" hidden>0</span>
           </button>
-          <button class="part-badge pb-trip" data-part="trip" style="--x:18%;--y:84%">
+          <button class="part-badge pb-trip" data-part="trip" style="--x:9%;--y:45%">
             <span class="pb-i">✈️</span>여행/예약<span class="pb-n" data-badge="trip" hidden>0</span>
           </button>
-          <button class="part-badge pb-money" data-part="money" style="--x:50%;--y:92%">
+          <button class="part-badge pb-money" data-part="money" style="--x:30%;--y:86%">
             <span class="pb-i">💳</span>가계부/쇼핑<span class="pb-n" data-badge="money" hidden>0</span>
           </button>
-          <button class="part-badge pb-routine" data-part="routine" style="--x:82%;--y:84%">
+          <button class="part-badge pb-routine" data-part="routine" style="--x:57%;--y:86%">
             <span class="pb-i">🗓️</span>일정/루틴<span class="pb-n" data-badge="routine" hidden>0</span>
           </button>
-          <button class="part-badge pb-lounge" data-part="lounge" style="--x:82%;--y:50%">
+          <button class="part-badge pb-lounge" data-part="lounge" style="--x:71%;--y:21%">
             <span class="pb-i">☕</span>라운지
           </button>
 
@@ -94,7 +94,7 @@
           <div class="live-chip"><i class="dot"></i>LIVE</div>
         </div>
         <div class="map-foot">
-          <p class="map-hint">클레이 3D 오피스 · 파트 배지를 누르면 그 파트의 최근 기록이, 캐릭터를 누르면 일 맡기기가 열려요</p>
+          <p class="map-hint">도트 오피스 · 파트 배지를 누르면 그 파트의 최근 기록이, 캐릭터를 누르면 일 맡기기가 열려요. 빈 바닥을 누르면 내 캐릭터가 그리로 걸어가요.</p>
         </div>
       </div>
 
@@ -111,6 +111,24 @@
       <div class="channel-strip" id="meetingChannel">
         <span class="cs-item"><i class="dot"></i><span id="meetingChannelText">AI 단톡방에 연결하면 AI 팀과 함께 대화할 수 있어요</span></span>
         <button class="ghost-btn sm" id="meetingConnectBtn">연결하기</button>
+      </div>
+
+      <div class="discuss-card" id="discussCard">
+        <div class="dc-head">
+          <b>💬 AI끼리 대화</b>
+          <span id="discussHint">와플 · Claude · Gemini가 서로 토론해요 · 기본 2라운드</span>
+        </div>
+        <div class="dc-row">
+          <input id="discussTopic" maxlength="120" placeholder="토론 주제 (비우면 최근 대화로 이어서)" autocomplete="off">
+          <select id="discussRounds" aria-label="라운드 수">
+            <option value="1">1라운드</option>
+            <option value="2" selected>2라운드</option>
+            <option value="3">3라운드</option>
+          </select>
+          <button class="primary-btn" id="discussBtn">💬 AI끼리 대화</button>
+        </div>
+        <p class="dc-state" id="discussState" hidden></p>
+        <p class="dc-note">회의실에 <b>"AI끼리 얘기해봐"</b>라고 보내도 시작돼요. 진행되는 동안 오피스 맵의 캐릭터들이 회의 테이블로 모여 토론해요.</p>
       </div>
 
       <div class="meeting-grid">
@@ -660,6 +678,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=59"></script>
+<script type="module" src="js/app.js?v=60"></script>
 </body>
 </html>
