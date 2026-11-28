@@ -296,18 +296,18 @@ export const TABLE_SEATS = [
 
 // 평상시 거니는 자리 (라운지 · 복도 · 회의실 앞 · 아래쪽 마루)
 export const IDLE_SPOTS = [
-  { x: 81.0, y: 41.5, area: 'lounge' },
-  { x: 74.5, y: 33.5, area: 'lounge' },
-  { x: 84.0, y: 27.0, area: 'lounge' },
+  { x: 78.5, y: 37.0, area: 'lounge' },  // 러그 위
+  { x: 73.0, y: 42.0, area: 'lounge' },  // 러그 왼쪽
+  { x: 85.0, y: 43.5, area: 'lounge' },  // 러그 오른쪽
   { x: 60.0, y: 44.0, area: 'hall' },
   { x: 57.0, y: 60.0, area: 'hall' },
   { x: 62.0, y: 76.0, area: 'meeting' },
   { x: 40.0, y: 78.0, area: 'hall' },
   { x: 30.0, y: 30.0, area: 'hall' },
   { x: 33.0, y: 52.0, area: 'hall' },
-  { x: 51.0, y: 88.0, area: 'hall' },
-  { x: 78.0, y: 84.0, area: 'meeting' },
+  { x: 72.0, y: 79.0, area: 'meeting' },
   { x: 12.0, y: 74.0, area: 'hall' },
+  { x: 46.0, y: 34.0, area: 'hall' },
 ];
 
 // 걸어 다닐 수 없는 곳 (책상 상판 · 원형 테이블 · 소파 · 책장)
@@ -321,7 +321,7 @@ const RECTS = [
   { x0: 7.5, y0: 80.0, x1: 16.5, y1: 88.0 },
 ];
 // 원형 테이블 (타원)
-const TABLE = { cx: 77.0, cy: 57.4, rx: 9.0, ry: 8.4 };
+const TABLE = { cx: 77.0, cy: 57.6, rx: 7.6, ry: 7.0 };
 const BOUNDS = { x0: 5.5, y0: 25.5, x1: 94.5, y1: 91.5 };
 
 function blocked(x, y) {
