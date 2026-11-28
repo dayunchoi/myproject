@@ -6,7 +6,7 @@
    ═══════════════════════════════════════════════════════════ */
 import { NostrBus } from './nostr.js?v=13';
 import { AiRoom, loadAiConfig, saveAiConfig, clearAiConfig, AI_DEFAULT_URL, AI_DEFAULT_ROOM } from './airoom.js?v=4';
-import { Crew, personaOf } from './pixelcrew.js?v=8';
+import { Crew, personaOf } from './pixelcrew.js?v=9';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));

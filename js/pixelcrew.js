@@ -578,7 +578,7 @@ export class Crew {
         person.tx = plan.x; person.ty = plan.y;
         person.restUntil = 0;
       } else if (!person.restUntil) {
-        person.restUntil = now + 2200 + Math.random() * 4200;
+        person.restUntil = now + 6000 + Math.random() * 9000;
       }
 
       const dx = person.tx - person.x;
@@ -641,7 +641,7 @@ export class Crew {
             const next = FREE_SPOTS[Math.floor(Math.random() * FREE_SPOTS.length)] || { x: 60, y: 45 };
             person.restUntil = 0;
             if (dist(next.x, next.y, person.x, person.y) > 7) { person.tx = next.x; person.ty = next.y; }
-            else person.restUntil = now + 2400;
+            else person.restUntil = now + 3500;
           }
         }
       }
