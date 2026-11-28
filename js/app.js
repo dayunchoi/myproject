@@ -6,7 +6,7 @@
    ═══════════════════════════════════════════════════════════ */
 import { NostrBus } from './nostr.js?v=13';
 import { AiRoom, loadAiConfig, saveAiConfig, clearAiConfig, AI_DEFAULT_URL, AI_DEFAULT_ROOM } from './airoom.js?v=4';
-import { Crew, personaOf } from './pixelcrew.js?v=5';
+import { Crew, personaOf } from './pixelcrew.js?v=6';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -992,9 +992,11 @@ function deskIndexOf(name) {
   return DESK_BY_NAME[key] !== undefined ? DESK_BY_NAME[key] : hashOf(name) % 4;
 }
 function seatIndexOf(name) {
+  // 회의 테이블에서 서로 마주 보도록 자리를 띄워 앉힙니다 (위 · 오른쪽 아래 · 왼쪽)
   const order = ['와플', 'Claude', 'Gemini'];
+  const seats = [0, 3, 5];
   const i = order.findIndex((n) => sameName(n, name));
-  return i >= 0 ? i : hashOf(name) % 7;
+  return i >= 0 ? seats[i] : hashOf(name) % 7;
 }
 
 /** 그 AI 가 마지막으로 회의실에 말한 시각 (ms) */
