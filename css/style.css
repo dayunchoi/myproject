@@ -428,7 +428,7 @@ body.motion-off .agent .spr .f2 { opacity: 0; }
   border: 1.5px solid #6b4e3a;
   box-shadow: 2px 2px 0 rgba(80, 55, 35, .22);
   color: #4a3b31;
-  font-size: max(9px, calc(9.5px * var(--spr)));
+  font-size: max(9px, min(12px, calc(9.5px * var(--spr))));
   font-weight: 800;
   line-height: 1.35;
   letter-spacing: -.01em;
@@ -466,7 +466,7 @@ body.motion-off .agent .spr .f2 { opacity: 0; }
   border: 1px solid rgba(107, 78, 58, .45);
   box-shadow: 0 1px 0 rgba(80, 55, 35, .2);
   color: #4a3b31;
-  font-size: max(8px, calc(8.5px * var(--spr)));
+  font-size: max(8px, min(10.5px, calc(8.5px * var(--spr))));
   font-weight: 800;
   line-height: 1.5;
   white-space: nowrap;
