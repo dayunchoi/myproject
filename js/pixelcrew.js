@@ -307,7 +307,7 @@ export const IDLE_SPOTS = [
   { x: 33.0, y: 52.0, area: 'hall' },
   { x: 72.0, y: 79.0, area: 'meeting' },
   { x: 12.0, y: 74.0, area: 'hall' },
-  { x: 46.0, y: 34.0, area: 'hall' },
+  { x: 60.0, y: 35.0, area: 'hall' },
 ];
 
 // 걸어 다닐 수 없는 곳 (책상 상판 · 원형 테이블 · 소파 · 책장)
@@ -335,6 +335,22 @@ function blocked(x, y) {
 }
 
 const dist = (ax, ay, bx, by) => Math.hypot((ax - bx) * 0.8, ay - by); // 가로:세로 = 1402:1122
+
+/** 막힌 자리(책상·테이블 위)에 있으면 가장 가까운 빈 바닥으로 옮깁니다. */
+function nearestFree(x, y) {
+  if (!blocked(x, y)) return { x, y };
+  for (let r = 0.8; r <= 10; r += 0.8) {
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) {
+      const nx = x + Math.cos(a) * r;
+      const ny = y + Math.sin(a) * r;
+      if (!blocked(nx, ny)) return { x: nx, y: ny };
+    }
+  }
+  return { x: 60, y: 45 };
+}
+
+const FREE_SPOTS = IDLE_SPOTS.filter((spot) => !blocked(spot.x, spot.y));
+const spotAt = (i) => (FREE_SPOTS[i % FREE_SPOTS.length] || { x: 60, y: 45 });
 
 /* ────────── 상태 문구 ────────── */
 export function bubbleFor(state) {
@@ -399,7 +415,7 @@ export class Crew {
       if (!person) {
         const spot = typeof p.x === 'number' && typeof p.y === 'number'
           ? { x: p.x, y: p.y }
-          : IDLE_SPOTS[i % IDLE_SPOTS.length];
+          : spotAt(i);
         person = {
           x: spot.x, y: spot.y, tx: spot.x, ty: spot.y,
           facing: 1, state: 'idle', pose: 'stand',
@@ -551,6 +567,10 @@ export class Crew {
       const p = person.meta;
       if (!p) continue;
       const node = this.nodes.get(id);
+      if (blocked(person.x, person.y)) {
+        const free = nearestFree(person.x, person.y);
+        person.x = free.x; person.y = free.y;
+      }
       const plan = p.offline ? null : this._plan(p);
 
       if (plan) {
@@ -593,7 +613,7 @@ export class Crew {
         if (node) this._setPose(node, 'stand');
         if (person.stuck > 1.6) {
           person.stuck = 0;
-          const spot = IDLE_SPOTS[Math.floor(Math.random() * IDLE_SPOTS.length)];
+          const spot = FREE_SPOTS[Math.floor(Math.random() * FREE_SPOTS.length)] || { x: 60, y: 45 };
           person.tx = spot.x; person.ty = spot.y;
         }
       } else {
@@ -617,7 +637,7 @@ export class Crew {
             : spot?.area === 'lounge' ? 'lounge'
               : spot?.area === 'meeting' ? 'meeting' : 'idle';
           if (now > person.restUntil) {
-            const next = IDLE_SPOTS[Math.floor(Math.random() * IDLE_SPOTS.length)];
+            const next = FREE_SPOTS[Math.floor(Math.random() * FREE_SPOTS.length)] || { x: 60, y: 45 };
             person.restUntil = 0;
             if (dist(next.x, next.y, person.x, person.y) > 7) { person.tx = next.x; person.ty = next.y; }
             else person.restUntil = now + 2400;
