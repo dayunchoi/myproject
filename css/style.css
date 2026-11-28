@@ -1539,7 +1539,8 @@ body.motion-off .agent { transition: none; }
   .agent[data-state="idle"] .bub,
   .agent[data-state="lounge"] .bub,
   .agent[data-state="meeting"] .bub,
-  .agent[data-state="stroll"] .bub { display: none; }
+  .agent[data-state="stroll"] .bub,
+  .agent[data-state="walk"] .bub { display: none; }
   .agent .bub { max-width: 36vw; }
 }
 
