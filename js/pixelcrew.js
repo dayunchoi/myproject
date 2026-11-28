@@ -580,7 +580,9 @@ export class Crew {
         const free = nearestFree(person.x, person.y);
         person.x = free.x; person.y = free.y;
       }
-      const plan = p.offline ? null : this._plan(p);
+      // 내가 누른 자리로 걸어가는 중에는 하던 자리(책상·회의석)보다 그 이동을 먼저 따릅니다.
+      const manual = !!person.arrivePublish;
+      const plan = p.offline || manual ? null : this._plan(p);
 
       if (plan) {
         person.tx = plan.x; person.ty = plan.y;
