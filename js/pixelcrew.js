@@ -492,7 +492,7 @@ export class Crew {
   _layout() {
     const W = this.layer.clientWidth || 700;
     const H = this.layer.clientHeight || 560;
-    const scale = Math.max(0.58, Math.min(1.2, W / 620));
+    const scale = Math.max(0.72, Math.min(1.75, W / 430));
     if (Math.abs(scale - (this._scale || 0)) > 0.01) {
       this._scale = scale;
       this.layer.style.setProperty('--spr', scale.toFixed(3));
