@@ -372,7 +372,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .tag-meeting { left: 6%; top: 74%; }
 .tag-lounge { right: 4%; top: 34%; }
 
-.agent-layer { position: absolute; inset: 0; z-index: 3; --spr: 1; }
+.agent-layer { position: absolute; inset: 0; z-index: 9; --spr: 1; pointer-events: none; }
 .agent-layer.crew-off .spr svg,
 .agent-layer.crew-off .spr .f2 { animation: none !important; }
 
@@ -380,6 +380,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .agent {
   position: absolute;
   width: 0; height: 0;
+  pointer-events: auto;
   cursor: pointer;
   --lift: 0px;
   --flip: 1;
