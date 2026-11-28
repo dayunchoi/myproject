@@ -5,7 +5,8 @@
    · 비밀 키는 이 브라우저(localStorage)에만 저장합니다.
    ═══════════════════════════════════════════════════════════ */
 import { NostrBus } from './nostr.js?v=13';
-import { AiRoom, loadAiConfig, saveAiConfig, clearAiConfig, AI_DEFAULT_URL, AI_DEFAULT_ROOM } from './airoom.js?v=2';
+import { AiRoom, loadAiConfig, saveAiConfig, clearAiConfig, AI_DEFAULT_URL, AI_DEFAULT_ROOM } from './airoom.js?v=3';
+import { Crew, personaOf } from './pixelcrew.js?v=1';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -16,12 +17,12 @@ const DEFAULT_ROOM = 'dayun-office';
 const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band', 'wss://relay.primal.net'];
 const COLORS = ['#d8b4c4', '#a9c4e6', '#a8cdb4', '#e8c98e', '#d97d90', '#e3a988', '#b3b0dd', '#cfc4b8'];
 const ZONES = {
-  command: { left: 17, top: 8, right: 73, bottom: 43 },
-  meeting: { left: 4, top: 33, right: 56, bottom: 88 },
-  lounge: { left: 57, top: 32, right: 96, bottom: 87 },
+  command: { left: 5, top: 25, right: 66, bottom: 44 },
+  meeting: { left: 58, top: 42, right: 94, bottom: 79 },
+  lounge: { left: 66, top: 18, right: 94, bottom: 44 },
 };
 const ZONE_LABEL = { meeting: '대회의실', command: '지휘실', lounge: '라운지' };
-const ZONE_SPOT = { meeting: [26, 80], command: [46, 40], lounge: [74, 68] };
+const ZONE_SPOT = { meeting: [63, 70], command: [49, 45], lounge: [80, 42] };
 const STATUS_LABEL = { todo: '대기', doing: '진행 중', done: '완료' };
 const LEGACY_ID = /^(demo-|seed-|fake-)/;
 const PEER_REMEMBER_MS = 3 * 24 * 60 * 60 * 1000;
@@ -559,6 +560,7 @@ const ai = {
   room: null,
   myIds: new Set(),
   busy: false,
+  discuss: null, // 진행 중인 AI끼리 대화 { topic, rounds, round, names, until }
 };
 
 function myAiName() {
@@ -638,6 +640,7 @@ function renderAiStatus() {
         : 'AI 단톡방에 연결하면 AI 팀과 함께 대화할 수 있어요';
     }
   }
+  renderDiscussState();
 }
 
 function renderAiMembers() {
@@ -677,6 +680,111 @@ function renderAiMembers() {
 }
 
 function renderAgentAi() { renderAiStatus(); renderAiMembers(); }
+
+/* ══════════ AI끼리 대화 (회의실) ══════════ */
+function discussingNow(name) {
+  const d = ai.discuss;
+  if (!d) return false;
+  if (Date.now() > d.until) { endDiscuss(); return false; }
+  return !d.names.length || d.names.some((n) => sameName(n, name));
+}
+
+function discussNames() {
+  return (ai.room && ai.room.members ? ai.room.members : [])
+    .filter((m) => m.is_active).map((m) => m.ai_name).slice(0, 3);
+}
+
+function renderDiscussState() {
+  const d = ai.discuss;
+  const box = $('#discussState');
+  const btn = $('#discussBtn');
+  const card = $('#discussCard');
+  if (box) {
+    box.hidden = !d;
+    if (d) {
+      box.textContent = `💬 ${discussNames().join(' · ')} — ${Math.max(1, d.round)}/${d.rounds}라운드 토론 중…`;
+    }
+  }
+  if (btn) {
+    btn.disabled = !!d;
+    btn.textContent = d ? '토론 중…' : '💬 AI끼리 대화';
+  }
+  if (card) card.classList.toggle('busy', !!d);
+}
+
+function endDiscuss() {
+  if (!ai.discuss) return;
+  ai.discuss = null;
+  renderDiscussState();
+  renderAgents();
+  renderMeeting();
+}
+
+/** 한 라운드가 끝날 때까지(새 AI 글이 3개 또는 40초) 기다립니다. */
+function waitRound(before) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const timer = setInterval(async () => {
+      try { await ai.room.pull(); } catch (_) {}
+      const added = (ai.room.messages || []).length - before;
+      if (added >= 3 || Date.now() - started > 40000) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 3000);
+  });
+}
+
+async function startDiscuss(forceTopic) {
+  if (!aiConnected()) { toast('AI 단톡방에 먼저 연결해 주세요'); openAiModal(); return; }
+  if (!ai.room.isAdmin) { toast('AI끼리 대화는 방 주인 키로 연결했을 때 시작할 수 있어요'); return; }
+  if (ai.discuss) { toast('지금 토론 중이에요'); return; }
+
+  const topic = typeof forceTopic === 'string'
+    ? forceTopic
+    : (($('#discussTopic') && $('#discussTopic').value) || '').trim();
+  const rounds = Number(($('#discussRounds') && $('#discussRounds').value) || 2);
+  const names = discussNames();
+
+  ai.discuss = {
+    topic,
+    rounds,
+    round: 1,
+    names,
+    until: Date.now() + (rounds * 55 + 30) * 1000,
+  };
+  renderDiscussState();
+  renderMeeting();
+  renderAgents();
+  toast(`💬 ${names.join(' · ')} AI끼리 대화를 시작했어요`);
+
+  try {
+    for (let round = 1; round <= rounds; round += 1) {
+      if (!ai.discuss) break;
+      ai.discuss.round = round;
+      renderDiscussState();
+      const before = (ai.room.messages || []).length;
+      let data = null;
+      try {
+        data = await ai.room.discuss({ topic, rounds, round });
+      } catch (err) {
+        toast('토론을 이어 가지 못했어요 · ' + (err.message || '연결을 확인해 주세요'));
+        break;
+      }
+      await waitRound(before);
+      // 이번 라운드에서 아무도 말하지 않았으면 다음으로 넘어가지 않습니다.
+      if (!ai.discuss) break;
+      if (data && data.next_round === null && round >= rounds) break;
+    }
+  } finally {
+    const had = ai.discuss;
+    ai.discuss = null;
+    renderDiscussState();
+    renderAgents();
+    renderMeeting();
+    if (had) toast('✅ AI끼리 대화를 마쳤어요');
+  }
+}
 
 async function issueAiKey(name) {
   const aiName = (name || '').trim();
@@ -867,103 +975,130 @@ function openPart(part) {
   openModal('partModal');
 }
 
-/* ══════════ 렌더: 오피스 맵 캐릭터 ══════════ */
-const agentEls = new Map();
+/* ══════════ 렌더: 오피스 맵 도트 캐릭터 ══════════ */
+let crew = null;
 
-function paintAgentEl(el, a, spot) {
-  el.style.left = spot.x + '%';
-  el.style.top = spot.y + '%';
-  el.style.setProperty('--c', a.color || COLORS[0]);
-  el.classList.toggle('me', a.id === meId);
-  el.classList.toggle('offline', !isOnline(a));
-  const dot = el.querySelector('.tag i');
-  if (dot) dot.style.background = a.color || COLORS[0];
-  const nm = el.querySelector('.tag span');
-  const nmText = a.id === meId ? `${a.name} (나)` : a.name;
-  if (nm.textContent !== nmText) nm.textContent = nmText;
-  const doing = doingTaskOf(a.id);
-  el.title = `${a.name} · ${ZONE_LABEL[a.room] || '지휘실'} · ${doing ? '진행 중: ' + doing.title : '대기 중'}${a.id === meId ? '' : ' · 클릭해서 일 맡기기'}`;
+const normName = (n) => String(n || '').replace(/\s+/g, '').toLowerCase();
+const sameName = (a, b) => !!a && !!b && normName(a) === normName(b);
+function hashOf(text) {
+  let h = 0;
+  for (const ch of String(text || '')) h = (h * 31 + ch.charCodeAt(0)) % 9973;
+  return h;
+}
+/* 이름별로 늘 같은 책상을 씁니다 (와플·Claude·Gemini·다윤 자리 고정). */
+const DESK_BY_NAME = { waffle: 0, claude: 1, gemini: 2, dayun: 3 };
+function deskIndexOf(name) {
+  const key = personaOf(name);
+  return DESK_BY_NAME[key] !== undefined ? DESK_BY_NAME[key] : hashOf(name) % 4;
+}
+function seatIndexOf(name) {
+  const order = ['와플', 'Claude', 'Gemini'];
+  const i = order.findIndex((n) => sameName(n, name));
+  return i >= 0 ? i : hashOf(name) % 7;
+}
+
+/** 그 AI 가 마지막으로 회의실에 말한 시각 (ms) */
+function lastAiSpokeAt(name) {
+  if (!aiConnected()) return 0;
+  const msgs = ai.room.messages || [];
+  for (let i = msgs.length - 1; i >= 0; i -= 1) {
+    if (sameName(msgs[i].sender_name, name)) return Date.parse(msgs[i].created_at) || 0;
+  }
+  return 0;
+}
+
+/** 오피스 맵에 세울 캐릭터 목록 */
+function mapRoster() {
+  const roster = [];
+  const meRow = state.agents[meId];
+  const myName = (meRow && meRow.name) || '와플';
+  const myDoing = doingTaskOf(meId);
+  roster.push({
+    id: meId,
+    name: myName,
+    color: (meRow && meRow.color) || COLORS[0],
+    mine: true,
+    x: meRow && meRow.x,
+    y: meRow && meRow.y,
+    doingTitle: myDoing ? myDoing.title : '',
+    desk: deskIndexOf(myName),
+    title: `${myName} (나) · ${myDoing ? '진행 중: ' + myDoing.title : '대기 중'} · 클릭해서 프로필`,
+  });
+
+  for (const a of Object.values(state.agents)) {
+    if (a.id === meId) continue;
+    const doing = doingTaskOf(a.id);
+    roster.push({
+      id: a.id,
+      name: a.name,
+      color: a.color,
+      x: a.x,
+      y: a.y,
+      doingTitle: doing ? doing.title : '',
+      desk: deskIndexOf(a.name),
+      title: `${a.name} · ${ZONE_LABEL[a.room] || '지휘실'}${doing ? ' · 진행 중: ' + doing.title : ' · 클릭해서 일 맡기기'}`,
+    });
+  }
+
+  // AI 단톡방에 연결돼 있으면 방의 AI 도 도트 캐릭터로 함께 일합니다.
+  if (aiConnected()) {
+    const members = (ai.room.members || []).filter((m) => m.is_active);
+    members.forEach((m) => {
+      if (sameName(m.ai_name, myName)) return; // 내 캐릭터가 이미 있어요
+      const debating = discussingNow(m.ai_name);
+      const spokeAt = lastAiSpokeAt(m.ai_name);
+      const speaking = !debating && spokeAt > 0 && Date.now() - spokeAt < 9000;
+      roster.push({
+        id: 'ai:' + m.id,
+        name: m.ai_name,
+        color: colorForName(m.ai_name),
+        debating,
+        speak: speaking,
+        seat: seatIndexOf(m.ai_name),
+        desk: deskIndexOf(m.ai_name),
+        title: `${m.ai_name} · ${debating ? 'AI끼리 토론 중' : '대기 중'} · 클릭해서 일 맡기기`,
+      });
+    });
+  }
+  return roster;
 }
 
 function renderAgents() {
   const layer = $('#agentLayer');
   if (!layer) return;
-  const alive = new Set();
+
+  // 10분 지난 기록, 같은 이름으로 남은 예전 내 기록은 지도에서 정리합니다.
   const staleBefore = Date.now() - 10 * 60 * 1000;
   const myName = (state.agents[meId] && state.agents[meId].name) || '';
   for (const [id, a] of Object.entries(state.agents)) {
     if (id === meId) continue;
-    // 10분 지난 기록, 그리고 같은 이름으로 남은 예전 내 기록은 지도에서 정리합니다.
     if ((a._seen || 0) < staleBefore || (myName && a.name === myName)) {
       delete state.agents[id];
       saveState();
     }
   }
-  const list = Object.values(state.agents)
-    .filter((a) => a.id === meId || isOnline(a))
-    .sort((a, b) => (a.id === meId ? 1 : b.id === meId ? -1 : 0));
 
-  // AI 단톡방에 연결돼 있으면, 방에 있는 AI도 대회의실 캐릭터로 세웁니다.
-  if (aiConnected()) {
-    const members = (ai.room.members || []).filter((m) => m.is_active);
-    members.forEach((m, i) => {
-      if (m.ai_name === '와플') return; // 와플은 내 캐릭터가 이미 있어요
-      list.push({
-        id: 'ai:' + m.id,
-        name: m.ai_name,
-        initial: (m.ai_name || '·').slice(0, 1),
-        color: colorForName(m.ai_name),
-        room: 'meeting',
-        x: 20 + (i % 3) * 13,
-        y: 44 + Math.floor(i / 3) * 9,
-        updatedAt: Date.now(),
-        _seen: Date.now(),
-      });
+  if (!crew) {
+    crew = new Crew(layer, {
+      onPick: (id) => {
+        if (id === meId) openProfile();
+        else openAssign(id);
+      },
+      onArrive: (id, x, y) => {
+        if (id !== meId) return;
+        const me = state.agents[meId];
+        if (!me) return;
+        me.x = x;
+        me.y = y;
+        me.room = zoneAt(x, y) || me.room;
+        me.updatedAt = Date.now();
+        saveState();
+        publishMeThrottled();
+      },
     });
   }
-
-  const placed = [];
-  const spots = new Map();
-  for (const a of list) {
-    let x = a.x ?? ZONE_SPOT[a.room][0];
-    let y = a.y ?? ZONE_SPOT[a.room][1];
-    let guard = 0;
-    while (placed.some((p) => Math.abs(p.x - x) < 9 && Math.abs(p.y - y) < 10) && guard < 16) {
-      x += 9;
-      y += guard % 2 === 0 ? 8 : -9;
-      if (x > 92) { x = 8 + (guard % 3) * 7; y += 10; }
-      y = clamp(y, 7, 93);
-      guard += 1;
-    }
-    placed.push({ x, y });
-    spots.set(a.id, { x, y });
-  }
-
-  for (const a of list) {
-    alive.add(a.id);
-    let el = agentEls.get(a.id);
-    if (!el) {
-      el = document.createElement('div');
-      el.className = 'agent';
-      el.dataset.agent = a.id;
-      el.innerHTML = `
-        <span class="me-mark" aria-hidden="true">나</span>
-        <div class="tag"><i></i><span></span></div>
-        <div class="body"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span></div>`;
-      const aid = a.id;
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (aid === meId) openProfile();
-        else openAssign(aid);
-      });
-      layer.appendChild(el);
-      agentEls.set(aid, el);
-    }
-    paintAgentEl(el, a, spots.get(a.id) || { x: a.x, y: a.y });
-  }
-  for (const [id, el] of agentEls) {
-    if (!alive.has(id)) { el.remove(); agentEls.delete(id); }
-  }
+  crew.setMotion(motionOn);
+  crew.sync(mapRoster());
 }
 
 function zoneAt(x, y) {
@@ -977,10 +1112,12 @@ function zoneAt(x, y) {
 function moveMe(x, y) {
   const a = state.agents[meId];
   if (!a) return;
+  a.updatedAt = Date.now();
+  // 내 캐릭터는 누른 자리까지 실제로 걸어갑니다 (도착하면 위치를 알립니다).
+  if (crew && crew.walkTo(meId, x, y)) return;
   a.x = clamp(x, 2, 98);
   a.y = clamp(y, 3, 96);
   a.room = zoneAt(a.x, a.y) || a.room;
-  a.updatedAt = Date.now();
   renderAgents();
   saveState();
   publishMeThrottled();
@@ -1855,6 +1992,8 @@ function wire() {
         if (data?.message?.id) ai.myIds.add(data.message.id);
         input.value = '';
         renderMeeting();
+        // "AI끼리 얘기해봐" 처럼 보내면 서버가 1회성 답글 대신 토론으로 넘깁니다.
+        if (data && data.discussion_started) startDiscuss('');
       } catch (err) {
         toast('보내지 못했어요 · ' + (err.message || '연결을 확인해 주세요'));
       }
@@ -1870,6 +2009,12 @@ function wire() {
     list.scrollTop = list.scrollHeight;
   });
   $('#meetingConnectBtn').addEventListener('click', openAiModal);
+  if ($('#discussBtn')) $('#discussBtn').addEventListener('click', () => startDiscuss());
+  if ($('#discussTopic')) {
+    $('#discussTopic').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); startDiscuss(); }
+    });
+  }
 
   let agendaTimer = null;
   $('#agendaInput').addEventListener('input', (e) => {

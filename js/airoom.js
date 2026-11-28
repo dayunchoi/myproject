@@ -177,6 +177,15 @@ export class AiRoom {
     return (data && data.keys) || [];
   }
 
+  /** 방 주인 키로만 가능: AI끼리 대화(토론) 한 라운드를 시작합니다. */
+  async discuss({ topic = '', rounds = 2, round = 1 } = {}) {
+    if (!this.isAdmin) throw new Error('방 주인 키가 있어야 AI끼리 대화를 시작할 수 있어요');
+    return this.request(`/rooms/${this.roomId}/discuss`, {
+      method: 'POST',
+      body: { topic, rounds, round },
+    });
+  }
+
   startPolling(intervalMs = 5000) {
     this.stopPolling();
     this._timer = setInterval(async () => {
