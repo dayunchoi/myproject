@@ -562,6 +562,14 @@ export class Crew {
     }
   }
 
+  /** 다른 캐릭터와 겹치지 않는 빈 자리를 고릅니다. */
+  _pickSpot(person) {
+    const others = [...this.people.values()].filter((q) => q !== person && q.meta);
+    const roomy = FREE_SPOTS.filter((spot) => others.every((q) => dist(spot.x, spot.y, q.x, q.y) > 9));
+    const pool = roomy.length ? roomy : FREE_SPOTS;
+    return pool[Math.floor(Math.random() * pool.length)] || { x: 60, y: 45 };
+  }
+
   _step(dt) {
     const now = Date.now();
     for (const [id, person] of this.people) {
@@ -614,7 +622,7 @@ export class Crew {
         if (node) this._setPose(node, 'stand');
         if (person.stuck > 1.6) {
           person.stuck = 0;
-          const spot = FREE_SPOTS[Math.floor(Math.random() * FREE_SPOTS.length)] || { x: 60, y: 45 };
+          const spot = this._pickSpot(person);
           person.tx = spot.x; person.ty = spot.y;
         }
       } else {
@@ -638,7 +646,7 @@ export class Crew {
             : spot?.area === 'lounge' ? 'lounge'
               : spot?.area === 'meeting' ? 'meeting' : 'idle';
           if (now > person.restUntil) {
-            const next = FREE_SPOTS[Math.floor(Math.random() * FREE_SPOTS.length)] || { x: 60, y: 45 };
+            const next = this._pickSpot(person);
             person.restUntil = 0;
             if (dist(next.x, next.y, person.x, person.y) > 7) { person.tx = next.x; person.ty = next.y; }
             else person.restUntil = now + 3500;
