@@ -5,8 +5,8 @@
    · 비밀 키는 이 브라우저(localStorage)에만 저장합니다.
    ═══════════════════════════════════════════════════════════ */
 import { NostrBus } from './nostr.js?v=13';
-import { AiRoom, loadAiConfig, saveAiConfig, clearAiConfig, AI_DEFAULT_URL, AI_DEFAULT_ROOM } from './airoom.js?v=3';
-import { Crew, personaOf } from './pixelcrew.js?v=1';
+import { AiRoom, loadAiConfig, saveAiConfig, clearAiConfig, AI_DEFAULT_URL, AI_DEFAULT_ROOM } from './airoom.js?v=4';
+import { Crew, personaOf } from './pixelcrew.js?v=2';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
