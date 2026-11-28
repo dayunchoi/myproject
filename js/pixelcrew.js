@@ -359,6 +359,7 @@ export function bubbleFor(state) {
     case 'speak': return '💬 회의실 발언 중';
     case 'debate': return '💬 토론 중';
     case 'walk': return '🚶 자리로 이동 중';
+    case 'stroll': return '🚶 거니는 중';
     case 'lounge': return '☕ 라운지 휴식';
     case 'meeting': return '🏛️ 회의실 대기';
     case 'away': return '💤 자리 비움';
@@ -609,7 +610,7 @@ export class Crew {
           node.el.style.zIndex = String(10 + Math.round(person.y));
           node.el.style.setProperty('--flip', person.facing < 0 ? '-1' : '1');
         }
-        person.state = 'walk';
+        person.state = plan ? 'walk' : 'stroll';
         if (node) this._setPose(node, 'stand');
         if (person.stuck > 1.6) {
           person.stuck = 0;
