@@ -550,7 +550,8 @@ body.motion-off .agent .spr .f2 { opacity: 0; }
 .discuss-card .dc-head span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
 .discuss-card .dc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .discuss-card .dc-row input {
-  flex: 1 1 220px;
+  flex: 1 1 200px;
+  width: auto;
   min-width: 0;
   height: 38px;
   padding: 0 12px;
@@ -564,7 +565,9 @@ body.motion-off .agent .spr .f2 { opacity: 0; }
 .discuss-card .dc-row input:focus { outline: 2px solid var(--rose); outline-offset: 1px; }
 .discuss-card .dc-row select {
   height: 38px;
-  padding: 0 10px;
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0 26px 0 10px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--card);
@@ -572,7 +575,7 @@ body.motion-off .agent .spr .f2 { opacity: 0; }
   font-size: 12.5px;
   font-weight: 700;
 }
-.discuss-card .dc-row .primary-btn { height: 38px; padding: 0 16px; font-size: 13px; white-space: nowrap; }
+.discuss-card .dc-row .primary-btn { height: 38px; flex: 0 0 auto; padding: 0 16px; font-size: 13px; white-space: nowrap; }
 .discuss-card .primary-btn:disabled { opacity: .6; cursor: default; }
 .discuss-card .dc-state {
   margin: 0;
